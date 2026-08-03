@@ -1,0 +1,205 @@
+deemesh — Industrial Equipment Communication SDK
+Freeware License
+
+Copyright © 2026 spoonhasi
+All rights reserved.
+
+==============================================================================
+NOTICE
+==============================================================================
+
+This software, including its binary distributions, documentation,
+configuration templates, and associated materials (collectively, the
+"Software"), is published by spoonhasi (the "Author"). The Software is
+distributed free of charge under the terms set out below. The Author retains
+ownership of and copyright in the Software; this license grants permission to
+use and redistribute it, but does not transfer ownership.
+
+==============================================================================
+GRANT OF LICENSE
+==============================================================================
+
+Subject to the terms below, the Author grants you a worldwide, royalty-free,
+non-exclusive license to:
+
+  (a) use the Software for any purpose, including commercial and production
+      use, without payment of any fee;
+
+  (b) copy and redistribute the Software, in its unmodified binary form as
+      provided by the Author, including as a bundled component of your own
+      products or services.
+
+This license is granted on the following conditions:
+
+  (1) You must retain, in all copies you redistribute, the copyright notice,
+      this license, and the THIRD-PARTY-NOTICES file, so that every recipient
+      receives the same terms — including the disclaimers below.
+
+  (2) You must not misrepresent the origin of the Software or remove, alter,
+      or obscure the copyright or other ownership notices.
+
+No fee is required to use or redistribute the Software. The Author neither
+charges for the Software nor requires registration to obtain it.
+
+==============================================================================
+OWNERSHIP
+==============================================================================
+
+The Author retains all right, title, and interest in and to the Software,
+including all intellectual property rights therein. All rights not expressly
+granted herein are reserved. This license does not grant any rights in the
+name "deemesh" or any associated marks.
+
+==============================================================================
+NO SUPPORT, MAINTENANCE, OR UPDATE OBLIGATION
+==============================================================================
+
+The Software is provided as a free, self-contained release. The Author is
+under NO OBLIGATION to provide any support, maintenance, bug fixes, updates,
+upgrades, or any other services in connection with the Software, and may
+discontinue or change the Software at any time without notice. Any assistance
+the Author may choose to provide is entirely voluntary and creates no
+obligation.
+
+==============================================================================
+THIRD-PARTY COMPONENTS
+==============================================================================
+
+The Software incorporates certain third-party open-source components that
+remain subject to their respective licenses. A list of such components and
+their licenses is provided in the file THIRD-PARTY-NOTICES distributed with
+the Software. Your rights in those components are governed by their own
+licenses.
+
+The Software is designed to load a separate vendor SDK at runtime (for
+example, Fanuc's FOCAS2 library). Such vendor SDKs are NOT provided by the
+Author and are NOT covered by this license; you are responsible for obtaining
+them from the respective vendor and complying with the vendor's own license
+terms.
+
+==============================================================================
+DISCLAIMER OF WARRANTIES
+==============================================================================
+
+THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND
+NON-INFRINGEMENT. THE AUTHOR DOES NOT WARRANT THAT THE SOFTWARE WILL BE
+ERROR-FREE OR UNINTERRUPTED, OR THAT DEFECTS WILL BE CORRECTED.
+
+THE SOFTWARE IS INTENDED TO INTERFACE WITH INDUSTRIAL EQUIPMENT SUCH AS CNC
+MACHINE TOOLS. IMPROPER USE MAY CAUSE DAMAGE TO EQUIPMENT, LOSS OF PRODUCTION,
+OR OTHER HARM. YOU ASSUME FULL RESPONSIBILITY FOR TESTING, VALIDATION, AND
+THE SAFE DEPLOYMENT OF THE SOFTWARE IN YOUR TARGET ENVIRONMENT. THE SOFTWARE
+IS NOT DESIGNED, INTENDED, OR CERTIFIED FOR USE IN ANY APPLICATION IN WHICH
+ITS FAILURE COULD LEAD TO DEATH, PERSONAL INJURY, OR SEVERE PHYSICAL DAMAGE.
+
+==============================================================================
+WRITE OPERATIONS AND MACHINE STATE
+==============================================================================
+
+The Software provides write operations that CHANGE THE STATE of connected
+equipment — for example, writing PLC/PMC memory, tool or work offsets,
+variables, or part-program files. The Software does not itself provide
+high-level machine-control functions such as cycle start or cycle stop.
+However, write operations — including PLC/PMC memory writes — may be used to
+influence equipment behavior; this capability is inherent to the equipment
+itself and may be exercised by other means, independently of the Software.
+
+You are solely responsible for determining whether any write operation is
+safe in your environment and for all consequences of performing it. TO THE
+MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE AUTHOR ACCEPTS NO
+RESPONSIBILITY OR LIABILITY, AND SHALL OWE NO COMPENSATION OF ANY KIND, FOR
+ANY DAMAGE, LOSS, INJURY, OR OTHER HARM ARISING FROM ANY WRITE OPERATION OR
+ANY RESULTING CHANGE TO EQUIPMENT STATE, HOWEVER CAUSED.
+
+==============================================================================
+LIMITATION OF LIABILITY
+==============================================================================
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL THE
+AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL,
+OR PUNITIVE DAMAGES, OR FOR ANY LOSS OF PROFITS, REVENUE, DATA, PRODUCTION,
+OR USE, OR FOR ANY DAMAGE TO EQUIPMENT OR PROPERTY, WHETHER IN AN ACTION IN
+CONTRACT, TORT (INCLUDING NEGLIGENCE), OR OTHERWISE, ARISING OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR ITS USE OR PERFORMANCE, EVEN IF ADVISED OF
+THE POSSIBILITY OF SUCH DAMAGES.
+
+BECAUSE THE SOFTWARE IS PROVIDED FREE OF CHARGE, THIS ALLOCATION OF RISK IS A
+FUNDAMENTAL CONDITION OF ITS DISTRIBUTION. WHERE APPLICABLE LAW DOES NOT
+PERMIT THE FULL EXCLUSION OR LIMITATION OF LIABILITY, THE AUTHOR'S LIABILITY
+SHALL BE LIMITED TO THE MINIMUM EXTENT PERMITTED BY THAT LAW. NOTHING IN THIS
+LICENSE EXCLUDES OR LIMITS LIABILITY THAT CANNOT BE EXCLUDED OR LIMITED UNDER
+APPLICABLE LAW.
+
+==============================================================================
+TERMINATION
+==============================================================================
+
+This license terminates automatically if you breach any of its terms. Upon
+termination, you must cease using and distributing the Software. The
+DISCLAIMER OF WARRANTIES, WRITE OPERATIONS AND MACHINE STATE, and LIMITATION
+OF LIABILITY sections survive termination.
+
+==============================================================================
+GOVERNING LAW
+==============================================================================
+
+This license shall be governed by and construed in accordance with the laws
+of the Republic of Korea, without regard to its conflict-of-law principles.
+Any dispute arising out of or relating to the Software shall be subject to the
+exclusive jurisdiction of the courts of the Republic of Korea.
+
+==============================================================================
+PROJECT HOME & AUTHOR
+==============================================================================
+
+The Software is authored and published by spoonhasi:
+
+    Repository:  https://github.com/spoonhasi/deemesh
+    Contact:     spoonhasi@gmail.com
+
+The canonical release of the Software is the one published at the repository
+above. Questions may be directed to the contact address, subject to the
+"No Support, Maintenance, or Update Obligation" section above.
+
+==============================================================================
+KOREAN LANGUAGE SUMMARY (참고용 요약 — 비법적 효력)
+==============================================================================
+
+본 deemesh 소프트웨어(이하 "본 소프트웨어")는 spoonhasi("저작자")가 **무료로
+배포**하는 프리웨어입니다. 저작권은 저작자가 보유합니다.
+
+■ 허용: 누구나 **무료로**, 상업적 용도를 포함해 **자유롭게 사용**할 수 있으며,
+  제공된 그대로(바이너리)의 본 소프트웨어를 **자유롭게 복제·재배포**할 수 있습니다
+  (자신의 제품에 포함하여 배포하는 것도 허용). 별도 등록이나 비용은 없습니다.
+
+■ 조건: 재배포 시 저작권 표시, 본 라이선스, THIRD-PARTY-NOTICES 파일을 함께
+  포함해 모든 수령자가 동일한 조건(특히 아래 면책)을 받도록 해야 하며, 소프트웨어의
+  출처를 허위로 표시하거나 소유권 표시를 제거·변경해서는 안 됩니다.
+
+■ 지원 의무 없음: 본 소프트웨어는 무료 배포판으로, 저작자는 지원·유지보수·버그
+  수정·업데이트 등 어떠한 서비스도 제공할 의무가 없습니다.
+
+■ 무보증: 본 소프트웨어는 "있는 그대로(AS IS)" 제공되며 어떠한 보증도 하지
+  않습니다. 본 소프트웨어는 CNC 등 산업용 장비와 통신하는 목적으로 제공되며,
+  부적절한 사용으로 인한 장비 손상·생산 손실 등 일체의 위험은 사용자가 부담합니다.
+  사람의 사망·상해로 이어질 수 있는 용도로는 설계·의도되지 않았습니다.
+
+■ 쓰기(Write) 주의: 본 소프트웨어의 쓰기 기능은 장비의 상태를 변경합니다(PLC/PMC
+  메모리, 오프셋, 변수, NC 프로그램 등). 본 소프트웨어는 사이클 스타트·스톱 같은
+  상위 제어 기능을 직접 제공하지 않으나, PLC 쓰기 등을 통해 장비 동작에 영향을 줄
+  수 있으며 — 이는 본 소프트웨어 없이도 장비 자체로 가능한 것입니다. 쓰기가 안전한지
+  판단하고 그 결과를 책임지는 것은 전적으로 사용자이며, 쓰기 및 그로 인한 상태 변경
+  으로 발생하는 어떠한 피해에 대해서도 저작자는 일체의 책임이나 보상을 지지 않습니다.
+
+■ 책임 제한: 본 소프트웨어의 사용·성능과 관련하여 발생하는 어떠한 손해에 대해서도
+  저작자는 관련 법률이 허용하는 최대 범위에서 책임을 지지 않습니다.
+
+■ 준거법: 본 라이선스는 대한민국 법률에 따르며, 분쟁은 대한민국 법원의 관할입니다.
+
+저작·배포: spoonhasi
+프로젝트: https://github.com/spoonhasi/deemesh
+연락처: spoonhasi@gmail.com
+
+본 한국어 요약은 참고용입니다. 법적 효력은 위 영문 조항에 따릅니다.
