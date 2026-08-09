@@ -45,12 +45,14 @@ The **protocol identifier** this connection uses — `"nc_focas2_fanuc"` or `"nc
 
 Like `configuredMachineName`, this is a **value from the configuration** — not something the machine reports. It returns the `protocol` field of `deemesh_create` (or of the machine entry in `config.json`) as-is, which is why the address says `configured`.
 
-**Its purpose is narrow.** Most addresses are designed to hide the machine type, so no branching is needed. This value is for the **few places where the value space belongs to the machine type** — PLC address syntax (`D100` vs `DB99:DBB[5]`), diagnosis numbering, tool type codes, and the like, which the catalog explicitly marks as machine-dependent.
+**Its purpose is narrow.** Most addresses are designed to hide the machine type, so no branching is needed. This value is for the **few places where the value space belongs to the machine type** — PLC address syntax (`D100` vs `DB10.DBB56`), diagnosis numbering, tool type codes, and the like, which the catalog explicitly marks as machine-dependent.
 
 **Do not use it to decide whether something is supported.** "This machine type cannot do that address, so skip it" must be decided from `-20`. Branching on this value means your code keeps skipping even after support is added for that machine type.
 
 ## /machine/channel/axisCount
-The channel's **user axis count** (excluding spindles). Cached at connection time. The valid range of the `axis` filter is `1` to this value.
+The channel's **user axis count**. Cached at connection time. The valid range of the `axis` filter is `1` to this value.
+
+It counts geometry axes together with **non-spindle auxiliary axes** (indexing rotary tables, tailstocks, and the like), and excludes spindles — those are covered by `spindleCount` and the `spindle` filter.
 
 ## /machine/channel/spindleCount
 The channel's spindle count. Cached at connection time. The valid range of the `spindle` filter is `1` to this value.
@@ -98,9 +100,14 @@ The key set is **always the same regardless of machine** — when a value is una
 ## /machine/channel/operateMode
 The current operating mode code (with `desc`). A unified code regardless of machine:
 
-- `0` = Jog · `1` = MDI · `2` = Memory (automatic) · `6` = Edit · `7` = Handle
-- `8` = Teach in Jog · `9` = Teach in Handle · `10` = INC feed · `11` = Reference (return to origin)
-- `12` = Remote (DNC) · `13`–`17` = combined modes (Jog-REPOS, MDI-Reference, etc.) · `99` = Unknown
+- `0` = Jog · `1` = MDI · `2` = Memory (automatic) · `5` = no mode · `6` = Edit · `7` = Handle
+- `8` = Teach in Jog · `9` = Teach in Handle · `10` = INC feed · `11` = Reference (return to origin) · `12` = Remote (DNC)
+- `13` = Jog-REPOS · `14` = MDI-Reference · `15` = MDI-Teach in · `16` = MDI-Teach in-Reference · `17` = Auto-Teach in-Reference
+- `99` = Unknown
+
+`13`–`17` are **Siemens-only** — a basic mode (Jog/MDI/Auto) with an auxiliary function (REPOS, reference, teach-in) layered on top, which appears when that combination is selected on the operator panel. Fanuc reports the same situations using the basic mode code alone, so these values never occur there.
+
+`5` (no mode) is **Fanuc-only** — the state where no basic mode is selected, which the operator panel shows as `****` in the mode field. It differs from `99` (Unknown): here the machine positively reported "no mode", whereas `99` means we could not interpret the value it gave. Siemens has no equivalent state.
 
 ## /machine/channel/executionStatus
 The program **execution status** code (with `desc`). The "is it running now" counterpart to `operateMode` (which mode it is in):
@@ -206,7 +213,7 @@ The **sequence number (N number)** of the block currently executing. Returns `in
 
 On blocks that do carry an N, both machine types show **the subprogram's N numbers** inside a subprogram and **the main's N numbers** after the return.
 
-⚠️ **Fanuc's retention crosses file boundaries** (verified on a live control) — on an N-less block right after returning from a subprogram you see **the subprogram's last N**, and right after entering one you see **the main's N**. On Fanuc this value alone therefore cannot tell you which file the N belongs to — read `/machine/channel/programName` alongside it. On Siemens the leak cannot occur, since nothing is retained.
+⚠️ **Fanuc's retention crosses file boundaries** (verified on a live control) — on an N-less block right after returning from a subprogram you see **the subprogram's last N**, and right after entering one you see **the main's N**. On Fanuc this value alone therefore cannot tell you which file the N belongs to — read `/machine/channel/programName` alongside it. On Siemens the value is not retained, so the situation does not arise.
 
 ## /machine/channel/programBlockCounter
 The executed-block counter. **Its meaning differs by machine**: Fanuc is the number of blocks executed **since the cycle started** (`cnc_rdblkcount` — it resets at each Cycle Start and keeps counting through subprogram blocks; verified on a live control); Siemens is the **line number** currently executing within the program (`actLineNumber`, negatives clamped to 0). Returns `int`.
@@ -254,7 +261,7 @@ Line endings are normalized to a single LF (`
 The program-call nesting level (with `desc`): `0` = no program, `1` = main executing, `2`+ = subprogram (L1, L2, …). **Siemens only**.
 
 ## /machine/channel/auxModal/auxModalValue
-The auxiliary-function modal value — specify a **letter** in the `auxmodal` filter (e.g. `auxmodal=M`, `S`, `T`, `D`, `H`, `F`). Returns `float`. Example: `auxmodal=T` → the commanded tool number, `auxmodal=S` → the commanded spindle speed.
+The auxiliary-function modal value — specify a **letter** in the `auxModal` filter (e.g. `auxModal=M`, `S`, `T`, `D`, `H`, `F`). Returns `float`. Example: `auxModal=T` → the commanded tool number, `auxModal=S` → the commanded spindle speed.
 
 ## /machine/channel/singleBlockOn
 The single-block switch state (`true` = on). Fanuc reads the F4 signal bit, Siemens `singleBlockActive`.
@@ -388,7 +395,7 @@ The `workOffset` filter **takes the shop-floor G-code notation directly** (an op
 
 ⚠️ **This value is the stored translation.** Two more things bear on it. ① A work coordinate system can also carry **rotation, scaling and mirroring** (`workOffsetRotation`, `workOffsetScale`, `workOffsetMirrorOn`), and where those are set the coordinate transform is not determined by this value alone. ② The total actually in effect can differ from this value, because a basic reference and other frames add to it (`totalWorkOffsetValue`). If you need part coordinates, do not compute them — read `/machine/channel/axis/workPosition`. On an ordinary setup that only translates, rotation is `0`, scaling is `1` and mirroring is `false`, so this value *is* the transform.
 
-`axis` is the axis number (1–) or the axis name. `axis=1-3` · `workOffset=G54,G55` expansion is supported — for Fanuc, axis expansion of the same workoffset is bundled into a single FOCAS call.
+`axis` is the axis number (1–) or the axis name. `axis=1-3` · `workOffset=G54,G55` expansion is supported — for Fanuc, axis expansion of the same workOffset is bundled into a single FOCAS call.
 
 Writes take `{"value": 25.4}` (a single axis). **Currently Fanuc only** — Siemens write is planned after the machine-side activation procedure (SETUFR PI service) is verified (for now it is `-20`).
 
@@ -523,8 +530,12 @@ The unit follows the machine setting (mm/min or inch/min). Read `/machine/channe
 ## /machine/channel/axis/axisCurrent
 The axis motor current. Returns `float` + `unit:"Ampere"` on both protocols. Fanuc reads a diagnosis value, Siemens the drive parameter `R0078`.
 
+**Siemens**: the value comes from the drive, so on a channel whose axis has no drive assigned this is `-20` — a property of the machine's configuration, not a fault.
+
 ## /machine/channel/axis/axisTemperature
 The axis motor temperature. Returns `float` + `unit:"°C"`. For Fanuc this is diagnosis 308.
+
+**Siemens**: the value comes from the drive, so on a channel whose axis has no drive assigned this is `-20` — a property of the machine's configuration, not a fault.
 
 ## /machine/channel/axis/axisInterlockOn
 The axis interlock state (`true` = interlock engaged). **Fanuc only**.
@@ -532,7 +543,7 @@ The axis interlock state (`true` = interlock engaged). **Fanuc only**.
 ## /machine/channel/axis/axisReferencedOn
 Whether the axis has **established its machine reference point**. Returns `boolean`. **Read-only.**
 
-On an axis where this is `false` the coordinate system is not yet established — **the position addresses (`machinePosition`, `workPosition`, `relativePosition`, `distanceToGo`) can return plausible-looking numbers that mean nothing.** This is not an error you would notice; wrong values arrive silently, so anything that consumes positions right after power-on should check this value first. Machines with incremental encoders need a reference return before coordinates are valid; machines with absolute encoders are always `true`.
+On an axis where this is `false` the coordinate system is not yet established — **the position addresses (`machinePosition`, `workPosition`, `relativePosition`, `distanceToGo`) can return plausible-looking numbers that mean nothing.** This is not an error you would notice; wrong values arrive silently, so anything that consumes positions right after power-on should check this value first. Machines with incremental encoders need a reference return before coordinates are valid.
 
 Once established it stays `true` wherever the axis moves — this is **coordinate-system validity**, not the momentary "is the axis at the reference position right now".
 
@@ -562,7 +573,7 @@ The spindle motor current. **Siemens only** (drive parameter `R0078`). Returns `
 The spindle motor temperature. Returns `float` + `unit:"°C"`. For Fanuc this is diagnosis 403; for Siemens the drive parameter R0035.
 
 ## /machine/channel/spindle/speedCommanded
-The commanded spindle speed (S command value). Returns `float` + `unit:"rpm"`. **Fanuc is the channel modal S value** (the `spindle` filter is ignored — the S command is a channel-level concept); Siemens is the per-spindle `cmdSpeed`.
+The spindle **S command value**. Returns `float`. **No `unit` is attached** — what the command means depends on the spindle speed mode (a rotational speed under constant-speed mode, a surface speed under constant-surface-speed mode), and that holds on both machine types. **Fanuc is the channel modal S value** (the `spindle` filter is ignored — the S command is a channel-level concept); Siemens is the per-spindle `cmdSpeed`.
 
 ## /machine/channel/spindle/speedActual
 The per-spindle actual speed. Returns `float` + `unit:"rpm"` on both protocols — Fanuc uses `cnc_acts2`, Siemens the per-spindle `actSpeed`. Both machines specify the target spindle with the `spindle` filter.
@@ -579,7 +590,7 @@ Fanuc reads the `T` modal, Siemens `actTNumber`.
 **Fanuc verification pending**: Fanuc reads the `T` modal, and whether that value changes at tool-change completion (`M06`) or already at the `T` word is still awaiting verification on a real machine (in the latter case there are moments when it is indistinguishable from the "merely selected" tool). Until verified, do not use this value as a tool-change signal where the timing matters. Siemens is definitive (change-completion based, `actTNumber`).
 
 ## /machine/channel/activeToolEdgeNumber
-The number (`D`) of the edge whose compensation is **currently in effect** on the active tool. `channel` filter. Returns `int`. **Fanuc has no per-tool edge concept, so it is fixed at `1`**; Siemens uses `actDNumber`.
+The number (`D`) of the edge whose compensation is **currently in effect** on the active tool. `channel` filter. Returns `int`. Siemens uses `actDNumber`; **on Fanuc it is fixed at `1`** — the standard offset model has no per-tool edge layer, so exactly one compensation set is ever in effect (the tool management side is not currently supported).
 
 ## /machine/channel/spindle/spindleEnergyNet
 The spindle's net **energy** (cumulative consumed − cumulative regenerated). **Fanuc only** (diagnosis 4930), `unit:"Wh"`. Cumulative, so subtract two readings for an interval.
@@ -737,7 +748,7 @@ If the magazine number is the apartment building, this is the unit number — bo
 **Siemens only.** A machine without tool management has no magazine at all, so the value is always `"none"`.
 
 ## /machine/toolArea/tool/toolEdgeCount
-The number of **cutting edges (offset data sets)** the tool has. `toolArea` + `tool` filters (`toolArea` is the tool area number the channel uses). **Fanuc has no per-tool edge concept, so it is fixed at `1`**; Siemens uses `numCuttEdges`.
+The number of **cutting edges (offset data sets)** the tool has. `toolArea` + `tool` filters (`toolArea` is the tool area number the channel uses). Siemens uses `numCuttEdges`; **on Fanuc it is fixed at `1`** — in the standard offset model one offset number *is* one set of compensation values, so there is no per-tool edge layer (machines using tool management do carry edge numbers, but deemesh does not currently read that data).
 
 **This is a count, not the highest number.** Edges normally run from `1` upwards, but deleting a middle edge at the machine panel **leaves a gap and does not renumber the ones after it** — delete `2` out of `1`, `2`, `3` and what remains is `1` and `3` while this value becomes `2`. So do not assume `toolEdge` runs from `1` to this value.
 
@@ -1070,7 +1081,11 @@ The tool's **type code** (read + write, `int` + `desc`). **Uses the Sinumerik DP
 | `5xx` | turning tools | `500` roughing, `510` finishing, `530` cutoff, `540` threading |
 | `7xx` | special | `711` probe, `730` stop |
 
-Known codes come with their meaning in `desc` (`{"value": 500, "desc": "turning roughing tool"}`), and unregistered codes fall back to the first-digit family desc. It is also the reference value that determines the length1/2 axis assignment and radius interpretation (cutter/nose) for turning tools (5xx).
+The table above is **a guide, not the authority**. Siemens owns this code system and keeps extending it, so check the exact list in that model's *SINUMERIK 828D Tools Function Manual* (for 840D sl, the corresponding tool management volume). The same numbers are also visible on the tool list screen of the operator panel.
+
+Known codes come with their meaning in `desc` (`{"value": 500, "desc": "turning roughing tool"}`), and unregistered codes fall back to the first-digit family desc (`{"value": 573, "desc": "turning tool family"}`). **For a code outside the families listed above, the `desc` key is absent entirely** (`{"value": 300}`) — we do not invent a meaning we do not have. Do not assume `desc` is always present.
+
+It is also the reference value that determines the length1/2 axis assignment and radius interpretation (cutter/nose) for turning tools (5xx).
 
 **Write caution** — a nonexistent tool, or an edge that tool does not have, is rejected with `-18` (the message carries that tool's edge count). The machine itself would create a new edge when writing to edge count + 1, but a single typo would leave an edge removable only at the operator panel, so deemesh allows **modifying existing edges only**.
 
@@ -1174,11 +1189,16 @@ Reads the **content** of an NC file (download) and writes it (upload — creates
 ## /machine/plcAddress/plcType/plcValue
 Reads/writes a **single element of PMC/PLC memory** (Fanuc FOCAS2 `pmc_rdpmcrng`/`pmc_wrpmcrng`, Siemens OPC-UA `/Plc/` node). Both read (GET) and write (POST) are supported; the return type is `float` (one value), and writes are also a single number (e.g. `{"value": 42}`). This address handles **a single element only**; to work with several elements at once, use the list-form address in the same tree. Both the `plcAddress` and `plcType` filters are required.
 
-**plcAddress** — the address format **differs by machine**. Unlike `plcType` this is a **deliberate exception that is not normalized** — Fanuc's `D100` and Siemens's `DB99:DBB[5]` point into different memory architectures, and the table that maps one to the other is not SDK knowledge but site configuration that depends on how that machine's ladder was written. It will not be unified later either, so if you need to read the same signal across machines, **the host application must keep a per-machine address table**.
+**plcAddress** — the address format **differs by machine**. Unlike `plcType` this is a **deliberate exception that is not normalized** — Fanuc's `D100` and Siemens's `DB10.DBB56` point into different memory architectures, and the table that maps one to the other is not SDK knowledge but site configuration that depends on how that machine's ladder was written. It will not be unified later either, so if you need to read the same signal across machines, **the host application must keep a per-machine address table**.
 
 - **Fanuc**: the first character is the PMC area, the rest is the byte number (e.g. `R5`, `D100`). Specify a range with `~` — but for this (single) address the range must be **exactly one `plcType` size** (e.g. for word, `D100~D101`)
 - **Fanuc** PMC area first characters: `G` `F` `Y` `X` `A` `R` `T` `K` `C` `D` `M` `N` `E` `Z` — the range must be within the same area (`D100~D101` OK, `D100~R101` NG)
-- **Siemens**: the Sinumerik OPC-UA PLC-variable syntax as-is (e.g. `DB99:DBB[5]`) — the value is passed to the `/Plc/{address}` node. If `:` is omitted it is inserted automatically; if the `[..]` subscript is omitted `[1]` is attached automatically. A single element only — for multiple elements it errors and points you to the list-form address
+- **Siemens**: write it **exactly as it appears on the operator panel's `NC/PLC variables` screen**. The value is passed to the `/Plc/{address}` node. If the subscript is omitted, `[1]` is attached automatically. This address takes a single element only — for multiple elements it errors and points you to the list-form address
+- **Siemens** forms: **the address carries its own offset** — `DB<n>.DBB<offset>` (byte) · `DB<n>.DBW<offset>` (word) · `DB<n>.DBX<byte>.<bit>` (bit) · `IW<n>` · `MB<n>` · `Q<byte>.<bit>`. Notation examples: `DB10.DBB56` · `DB31.DBX24.1` · `IW0` · `Q0.2`
+- **Siemens** the subscript `[N]` is a **count, not an index**. `DB10.DBB56[4]` means **4 consecutive elements** starting at offset 56 (56·57·58·59) — not "the 4th of 56". To reach a different location, **move the address**, not the subscript (`DB10.DBB61`)
+- **Siemens** syntax caution (machine-independent): a form with no offset (`MB` alone · `DB<n>` alone) is not valid syntax, and a bit is addressed with `DBX`, not `DBB`
+- **Siemens**: **which blocks and bytes actually exist is a property of that machine's ladder** and differs from machine to machine. The notation examples above show the shape only — they are not addresses every machine has. Check on that same panel screen: if a value shows there, it reads here
+- **Siemens** 828D limit: 828D can only reach **customer data blocks from `DB9000` upward** (840D sl has no such limit)
 
 **plcType** — a numeric code that decides how to interpret the raw bytes. It is a **machine-independent unified value**, so any vendor uses the same number (the adapter translates it to each vendor's code):
 
@@ -1189,22 +1209,23 @@ Reads/writes a **single element of PMC/PLC memory** (Fanuc FOCAS2 `pmc_rdpmcrng`
 - `5` = float32 — 32-bit real · address width 4 (e.g. `D100~D103`)
 - `6` = float64 — 64-bit real · address width 8 (e.g. `D100~D107`)
 
-`0` = **auto** — the source decides the type. Protocols where the node knows its type, like Siemens (OPC-UA), read with that native type. In contrast, raw-memory vendors like **Fanuc/Mitsubishi** have no intrinsic type, so `0` (auto) is an error and it must be specified. **Fanuc (FOCAS2)** also has no bit type, so `1` (bit) is unsupported too — specify one of `2` (byte)–`6` (float64).
+`0` = **auto** — the source decides the type. Protocols where the node knows its type, like Siemens (OPC-UA), read with that native type. In contrast, protocols that address raw memory, like **Fanuc**, have no intrinsic type, so `0` (auto) is an error and it must be specified. **Fanuc (FOCAS2)** also has no bit type, so `1` (bit) is unsupported too — specify one of `2` (byte)–`6` (float64).
 
 **Important (Fanuc)** — the byte count of the `plcAddress` range must match the `plcType` size (e.g. `plcType=3` (word, 2 bytes) with a single `D100` address fails → specify `D100~D101`). `plcType` decides **only the interpretation**, and the result is returned as `float` (a JSON number).
 
 **Siemens** has the type encoded in the address itself (`DBB`/`DBW`/`DBD`, etc.), so `plcType=0` (auto) is recommended — putting in `1`–`6` behaves the same (it reads with the type the server reports). Writes read the node first to confirm the server type, then write with the same type.
 
-**Error codes** — a `plcType` the machine cannot use returns `-18` (invalid filter value). A value outside the spec (other than `0`~`6`) returns the same `-18`, and both call for the same fix: pick another `plcType`. It is not `-20` because **the address itself works on that machine** — `-20` is reserved for "this address cannot be used on this machine". The error string carries the accepted values.
+**Error codes** — an address that **does not exist on the machine** also returns `-18` (invalid filter value); which blocks and bytes exist depends on that machine's ladder, so check the same screen on the operator panel first. A `plcType` the machine cannot use returns `-18` too. A value outside the spec (other than `0`~`6`) returns the same `-18`, and both call for the same fix: pick another `plcType`. It is not `-20` because **the address itself works on that machine** — `-20` is reserved for "this address cannot be used on this machine". The error string carries the accepted values.
 
 ## /machine/plcAddress/plcType/plcValueList
 Reads/writes a **block of PMC/PLC memory elements** as an array. The filters, address format, and `plcType` rules are the same as `plcValue` (single) above; the only difference is that it handles **multiple elements**. The return type is `floatArray`, and the write `value` is a number array `[1, 2, ...]` — even a single element must be written as an array like `[42]`.
 
 - **Fanuc**: the range's byte count must be a **multiple** of the `plcType` size, and the element count = byte count ÷ type size (e.g. `D100~D107` + word = 4 → `[v1,v2,v3,v4]`)
-- **Siemens**: multi-element subscripts are allowed — the elements the server gives become the array as-is
+- **Siemens**: multi-element subscripts are allowed — `[N]` is a **count**. `DB10.DBB56[4]` returns **4 consecutive elements** starting at offset 56 as an array. The elements the server gives become the array as-is
+- **Siemens**: omitting the subscript or giving `[1]` still returns **an array** (`[131.0]`). This address always returns `floatArray`, so a single element does not change the shape — use it whenever the count varies or is not known in advance, and your parsing code never has to branch
 - Writes require the **element count to exactly match the target range/node's element count**
 
-**Error codes** — a `plcType` the machine cannot use returns `-18` (invalid filter value). A value outside the spec (other than `0`~`6`) returns the same `-18`, and both call for the same fix: pick another `plcType`. It is not `-20` because **the address itself works on that machine** — `-20` is reserved for "this address cannot be used on this machine". The error string carries the accepted values.
+**Error codes** — an address that **does not exist on the machine** also returns `-18` (invalid filter value); which blocks and bytes exist depends on that machine's ladder, so check the same screen on the operator panel first. A `plcType` the machine cannot use returns `-18` too. A value outside the spec (other than `0`~`6`) returns the same `-18`, and both call for the same fix: pick another `plcType`. It is not `-20` because **the address itself works on that machine** — `-20` is reserved for "this address cannot be used on this machine". The error string carries the accepted values.
 
 ## /machine/ncMemorySizeTotal
 The total NC memory capacity. Returns `int` + `unit:"bytes"`.

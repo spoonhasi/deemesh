@@ -16,9 +16,9 @@
 
 ## What is deemesh?
 
-On a shop floor, every CNC vendor speaks its own protocol — Fanuc uses FOCAS2, Siemens uses OPC-UA, and so on. Connecting one machine means learning that vendor's SDK; connecting the next vendor means starting over. That fragmentation has been a long-standing barrier to equipment integration.
+On a shop floor, the same value sits behind different interfaces — FOCAS2 on one control, OPC-UA on another. And a shared protocol is not the whole answer: where two controls both offer OPC-UA, their data models still differ, so the node holding an axis position on one is not the node on the other. Connecting a machine means learning its interface *and* its address space; the next one starts over.
 
-**deemesh puts one interface on top of all of them.** Whether the machine is a Fanuc or a Siemens, you read and write axis positions, alarms, programs and tool offsets through the same command structure:
+**deemesh puts one address layer on top.** Whether the machine is a Fanuc or a Siemens, you read and write axis positions, alarms, programs and tool offsets through the same command structure:
 
 ```
 /machine/channel/axis/machinePosition?channel=1&axis=1
@@ -47,7 +47,7 @@ The fastest way to see what deemesh does:
 
 1. Download **deemesh-hub** from Releases and unzip it.
 2. Put your machine's IP and protocol in `config.json` (an example file is included).
-3. Run `deemesh-hub-x64.exe`, then open **`http://localhost:8080/admin`** in a browser.
+3. Run `deemesh-hub-x86.exe`, then open **`http://localhost:8080/admin`** in a browser.
 4. Open the **address catalog** (`/admin/address`) to:
    - browse a tree of **everything the machine exposes**, and
    - select any address and **run a GET (read) or POST (write) right there**.
@@ -79,7 +79,7 @@ There are nine functions in total. `deemesh.h` is the authoritative declaration 
 ```c
 DeemeshHandle h = NULL;
 deemesh_create("{\"protocol\":\"nc_focas2_fanuc\",\"host\":\"192.168.1.100\","
-               "\"port\":8193,\"library_path\":\"fwlib64.dll\"}", &h);
+               "\"port\":8193,\"library_path\":\"fwlib32.dll\"}", &h);
 deemesh_connect(h);
 DeemeshResult r = deemesh_read(h, "/machine/channel/motionstatus?channel=1", 10000);
 printf("%s\n", r.data);          // {"status":0,"value":1,"desc":"Motion"}
@@ -133,8 +133,7 @@ POST /machine/channel/variable/variableValue?channel=1&variable=100      ← wri
 > Neither is something deemesh can supply, and neither is a deemesh setting — they live on
 > the machine and with its vendor.
 
-> Mitsubishi and Modbus I/O are on the roadmap. If you need a specific machine or protocol,
-> get in touch.
+> More protocols are planned. If you need a specific machine or protocol, get in touch.
 
 ---
 
@@ -144,8 +143,8 @@ Browse **[all releases](https://github.com/spoonhasi/deemesh/releases)**, or jum
 
 | Product | Latest release | Contents |
 |---|---|---|
-| **deemesh SDK** | **[⬇ deemesh-sdk v1.0.0](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-sdk-v1.0.0)** | Windows (32/64) · Linux (64) native libraries + C header + docs (KO/EN) |
-| **deemesh-hub** | **[⬇ deemesh-hub v1.0.0](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-hub-v1.0.0)** | Standalone HTTP server — **pick your platform**: `win-x64` · `win-x86` · `linux-x64`. Each archive is self-contained (single binary, no separate SDK needed) |
+| **deemesh SDK** | **[⬇ deemesh-sdk v1.0.1](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-sdk-v1.0.1)** | Windows (32/64) · Linux (64) native libraries + C header + docs (KO/EN) |
+| **deemesh-hub** | **[⬇ deemesh-hub v1.0.1](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-hub-v1.0.1)** | Standalone HTTP server — **pick your platform**: `win-x86` · `win-x64` · `linux-x64`. Each archive is self-contained (single binary, no separate SDK needed) |
 
 Each archive contains a `README`, documentation, `LICENSE` and `THIRD-PARTY-NOTICES`. The hub is published per platform, so download only the one you run (Windows: pick the bitness that matches your Fanuc `fwlib32/64.dll`; Siemens-only sites can use either). The SDK and the hub are versioned independently — take the latest of each.
 
