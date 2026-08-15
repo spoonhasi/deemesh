@@ -1,4 +1,4 @@
-deemesh — Industrial Equipment Communication SDK
+deemesh: Industrial Equipment Communication SDK
 Freeware License
 
 Copyright © 2026 spoonhasi
@@ -33,7 +33,7 @@ This license is granted on the following conditions:
 
   (1) You must retain, in all copies you redistribute, the copyright notice,
       this license, and the THIRD-PARTY-NOTICES file, so that every recipient
-      receives the same terms — including the disclaimers below.
+      receives the same terms, including the disclaimers below.
 
   (2) You must not misrepresent the origin of the Software or remove, alter,
       or obscure the copyright or other ownership notices.
@@ -72,10 +72,22 @@ the Software. Your rights in those components are governed by their own
 licenses.
 
 The Software is designed to load a separate vendor SDK at runtime (for
-example, Fanuc's FOCAS2 library). Such vendor SDKs are NOT provided by the
-Author and are NOT covered by this license; you are responsible for obtaining
-them from the respective vendor and complying with the vendor's own license
-terms.
+example, FANUC's FOCAS2 library or Mitsubishi Electric's EZSocket component).
+Such vendor SDKs are NOT provided by the Author and are NOT covered by this
+license; you are responsible for obtaining them from the respective vendor
+and complying with the vendor's own license terms.
+
+==============================================================================
+TRADEMARKS AND NO AFFILIATION
+==============================================================================
+
+Third-party names and marks referenced in the Software or its documentation
+(including FANUC, FOCAS, SIEMENS, SINUMERIK, Mitsubishi Electric, EZSocket,
+OPC-UA and others) are trademarks or registered trademarks of their respective
+owners and are used solely to identify the equipment and interfaces the
+Software can communicate with. The Software is an independent work; it is not
+affiliated with, sponsored by, or endorsed by those owners, and it does not
+distribute their software.
 
 ==============================================================================
 DISCLAIMER OF WARRANTIES
@@ -99,12 +111,13 @@ WRITE OPERATIONS AND MACHINE STATE
 ==============================================================================
 
 The Software provides write operations that CHANGE THE STATE of connected
-equipment — for example, writing PLC/PMC memory, tool or work offsets,
-variables, or part-program files. The Software does not itself provide
+equipment (for example, writing PLC/PMC memory, tool or work offsets,
+variables, or part-program files). The Software does not itself provide
 high-level machine-control functions such as cycle start or cycle stop.
-However, write operations — including PLC/PMC memory writes — may be used to
-influence equipment behavior; this capability is inherent to the equipment
-itself and may be exercised by other means, independently of the Software.
+However, write operations, including PLC/PMC memory writes, may be used to
+influence equipment behavior; this capability is provided by the equipment's
+own vendor interfaces and may be exercised through them independently of the
+Software.
 
 You are solely responsible for determining whether any write operation is
 safe in your environment and for all consequences of performing it. TO THE
@@ -164,7 +177,7 @@ above. Questions may be directed to the contact address, subject to the
 "No Support, Maintenance, or Update Obligation" section above.
 
 ==============================================================================
-KOREAN LANGUAGE SUMMARY (참고용 요약 — 비법적 효력)
+KOREAN LANGUAGE SUMMARY (참고용 요약, 법적 효력 없음)
 ==============================================================================
 
 본 deemesh 소프트웨어(이하 "본 소프트웨어")는 spoonhasi("저작자")가 **무료로
@@ -179,7 +192,19 @@ KOREAN LANGUAGE SUMMARY (참고용 요약 — 비법적 효력)
   출처를 허위로 표시하거나 소유권 표시를 제거·변경해서는 안 됩니다.
 
 ■ 지원 의무 없음: 본 소프트웨어는 무료 배포판으로, 저작자는 지원·유지보수·버그
-  수정·업데이트 등 어떠한 서비스도 제공할 의무가 없습니다.
+  수정·업데이트 등 어떠한 서비스도 제공할 의무가 없으며, 언제든 예고 없이 본
+  소프트웨어를 변경·중단할 수 있습니다.
+
+■ 제3자 구성요소·벤더 SDK: 본 소프트웨어에 포함된 오픈소스 구성요소는 각자의
+  라이선스를 따릅니다(THIRD-PARTY-NOTICES 참조). 본 소프트웨어가 런타임에 로드하는
+  벤더 SDK(예: FANUC 의 FOCAS2 라이브러리, Mitsubishi Electric 의 EZSocket)는
+  저작자가 제공하지 않고 본 라이선스의 대상도 아닙니다. 해당 SDK 의 입수와 벤더
+  라이선스 준수는 사용자의 책임입니다.
+
+■ 상표·비제휴: 본 소프트웨어와 문서에 언급된 제3자 제품명·회사명(FANUC·FOCAS·SIEMENS·SINUMERIK·
+  Mitsubishi Electric·EZSocket·OPC-UA 등)은 각 소유자의 상표 또는 등록상표이며 통신
+  대상을 식별하는 목적으로만 사용합니다. 본 소프트웨어는 독립적으로 개발되었으며 해당
+  회사들과 제휴·후원·승인 관계가 없고, 그 회사들의 소프트웨어를 배포하지 않습니다.
 
 ■ 무보증: 본 소프트웨어는 "있는 그대로(AS IS)" 제공되며 어떠한 보증도 하지
   않습니다. 본 소프트웨어는 CNC 등 산업용 장비와 통신하는 목적으로 제공되며,
@@ -189,12 +214,17 @@ KOREAN LANGUAGE SUMMARY (참고용 요약 — 비법적 효력)
 ■ 쓰기(Write) 주의: 본 소프트웨어의 쓰기 기능은 장비의 상태를 변경합니다(PLC/PMC
   메모리, 오프셋, 변수, NC 프로그램 등). 본 소프트웨어는 사이클 스타트·스톱 같은
   상위 제어 기능을 직접 제공하지 않으나, PLC 쓰기 등을 통해 장비 동작에 영향을 줄
-  수 있으며 — 이는 본 소프트웨어 없이도 장비 자체로 가능한 것입니다. 쓰기가 안전한지
-  판단하고 그 결과를 책임지는 것은 전적으로 사용자이며, 쓰기 및 그로 인한 상태 변경
-  으로 발생하는 어떠한 피해에 대해서도 저작자는 일체의 책임이나 보상을 지지 않습니다.
+  수 있습니다. 이는 장비 제조사가 제공하는 인터페이스 자체의 기능으로, 본 소프트웨어
+  없이도 그 인터페이스를 통해 가능한 것입니다. 쓰기가 안전한지 판단하고 그 결과를
+  책임지는 것은 전적으로 사용자이며, 쓰기 및 그로 인한 상태 변경으로 발생하는 어떠한
+  피해에 대해서도 저작자는 어떠한 책임도 지지 않으며 어떠한 보상도 하지 않습니다.
 
 ■ 책임 제한: 본 소프트웨어의 사용·성능과 관련하여 발생하는 어떠한 손해에 대해서도
   저작자는 관련 법률이 허용하는 최대 범위에서 책임을 지지 않습니다.
+
+■ 종료: 본 라이선스 조건을 위반하면 라이선스는 자동으로 종료되며, 종료 시 본
+  소프트웨어의 사용과 배포를 중지해야 합니다. 무보증·쓰기 주의·책임 제한 조항은
+  종료 후에도 유효합니다.
 
 ■ 준거법: 본 라이선스는 대한민국 법률에 따르며, 분쟁은 대한민국 법원의 관할입니다.
 
