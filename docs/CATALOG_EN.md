@@ -282,7 +282,7 @@ Each control expresses its own automatic-operation state differently. deemesh do
 
 **Mitsubishi reports only `0`-`3`.** This control gives a set of automatic-operation flags (in operation / executing / paused) rather than a status code, and deemesh combines them into the vocabulary above. The `Stop` / `Hold` split maps exactly onto the vendor's own definitions - what it calls "pause" means *halted while executing a command*, which is the `Hold` state above, and the remaining case (in automatic operation but neither executing nor paused) is `Stop`, standing at a block boundary.
 
-`5` (Siemens only) means **paused for a reason not classified as either of the above** (emergency stop, waiting for the spindle, and other stop reasons). The fact that it is paused is certain, so a consumer that does not care about the kind may treat `1`/`2`/`5` together as "paused".
+`5` (Siemens only) means **the machine stopped because something is wrong**. Two causes are confirmed in the test environment: an **emergency stop** and an **alarm stop**. Normal stops (M0, single block, an operator stop) all resolve to `1`/`2`, so when you see `5`, tell the two apart with `/machine/channel/alarmStatus` and `/machine/channel/emergencyStatus`. The control reports stop reasons in finer detail than this, so other reasons may land here too, which is why the name is still "a stop that was not classified". The fact that it is paused is certain, so a consumer that does not care about the kind may treat `1`/`2`/`5` together as "paused".
 
 ⚠️ **During an emergency stop the value differs by machine type** (confirmed in our test environments): Fanuc and Mitsubishi report `0` (Reset), Siemens `5` (Interrupted). This is a spot where this address gives different codes for the same situation; detect an E-stop with `/machine/channel/emergencyStatus`, not this address.
 
@@ -299,6 +299,8 @@ The axis motion status code (with `desc`):
 
 - `0` = None/Idle · `1` = Motion (moving) · `2` = Dwell (dwelling)
 - `3` = multi-path synchronization wait (Fanuc) · `4` = Not dwelling (not in a dwell; nothing more is known)
+
+**A dwell keeps counting down while the program is stopped** (confirmed in the Siemens test environment). While an operator stop holds the program and `executionStatus` reads `2` (Hold), the remaining `G4` time still runs to `0`, after which this address changes from `2` (Dwell) to `4` (Not dwelling). A stop does not freeze the dwell, so on resume that block is already finished and execution continues with the next one.
 
 **`4` is a superset of `0`, `1` and `3`** - it means the state is one of those three but cannot be narrowed further. On Siemens and Mitsubishi, deemesh judges from the remaining dwell time, so those two report only `2` or `4` (`0`, `1` and `3` are Fanuc only).
 
@@ -1530,6 +1532,8 @@ The first two were confirmed in our test environments - the value reads `7` imme
 
 **So on Fanuc and Mitsubishi this value must not be read as "the tool that is cutting right now"**; it is the commanded tool. If the moment of the change matters, do not use this address as a change signal. Watch the machine's own change-complete signal. The tool actually held in the spindle is not reachable through the SDK on those two: the tool number shown on the control is produced by the machine builder's ladder, so it differs per machine, and it resists neutralization for the same reason `plcAddress` does.
 
+⚠️ **With the Fanuc Tool Management option enabled, this value is not a tool number.** Under that option `T` does not name a tool: it names a **tool type (group) number**, and the control picks an actual tool of that type. Confirmed in a test environment: with the control's `EACH TOOL DATA` listing tool `1` as type `4`, programming `T4` made this address read `4` while the actual tool was `1`. On a machine without the option `T` is the tool number and the question does not arise. If your machine uses the option, do not feed this value straight into the tool tree lookup below.
+
 Put this number into the `tool` filter of the tool tree to look up that tool's name, edge count and offsets. The `toolArea` value you also need comes from `/machine/channel/toolAreaNumber` (cached at connection time, so it costs no extra communication).
 
 Fanuc reads the `T` modal, Siemens `actTNumber`, and Mitsubishi the T command modal from `GetCommand2`.
@@ -1936,6 +1940,8 @@ Whether that tool number is **registered in the tool table**. `toolArea` + `tool
 Asking about a tool that does not exist is not an error. It answers `false`, because the address exists to ask that question.
 
 **Writing creates and deletes the tool.** `{"value": true}` creates it, `{"value": false}` deletes it. If it is already in that state, nothing happens and the write succeeds.
+
+The tool is created with **one cutting edge** and the **standard location type**. The location type decides which magazine places the tool can go into, so leaving it unset means the operator panel finds no place to load it into. deemesh therefore fills it with the same value the panel gives a new tool. Set the name, tool type and offsets afterwards through their own addresses. Until you do, the tool type reads `9999` (not set) and the operator panel shows the type column as empty, but **unlike the location type this blocks neither loading nor use** (the two fields are easy to confuse because both use `9999`).
 
 A newly created tool is **empty and has one cutting edge**, and its name is the tool number as a string. Follow up with `/machine/toolArea/tool/toolName` for the name and `/machine/toolArea/tool/toolEdge/*` for the offsets; to add more edges use `/machine/toolArea/tool/toolEdge/toolEdgeExists`. This is the flow that registers presetter measurements without going to the machine panel.
 
@@ -2540,7 +2546,7 @@ read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
 write: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
 ```
 
-The **name of the entry** that `ncMemoryPath` points at. Reading returns the last segment of the path (a pure string operation, no machine communication) and writing performs a **rename**. Writes take `{"value": "new name"}`, and path separators are not allowed, common to files/folders. It refers to the same "entry" as `entry`/`entryList`.
+The **name of the entry** that `ncMemoryPath` points at. Reading returns **the name the machine holds for that entry**, and writing performs a **rename**. The read answers for a file or a folder alike, and rejects a path with nothing at it with `-18`, the same judgement `entry` and `fileExists` make. What comes back is the machine's own name, not the string you asked with, so a difference in spelling shows the machine's version. Writes take `{"value": "new name"}`, and path separators are not allowed, common to files/folders. It refers to the same "entry" as `entry`/`entryList`.
 
 ## /machine/ncMemoryPath/fileExists
 ```yaml
