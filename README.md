@@ -159,8 +159,8 @@ Browse **[all releases](https://github.com/spoonhasi/deemesh/releases)**, or jum
 
 | Product | Latest release | Contents |
 |---|---|---|
-| **deemesh SDK** | **[⬇ deemesh-sdk v1.1.0](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-sdk-v1.1.0)** | Windows (32/64) · Linux (64) native libraries + C header + docs (KO/EN) |
-| **deemesh-hub** | **[⬇ deemesh-hub v1.1.0](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-hub-v1.1.0)** | Standalone HTTP server: `win` · `linux-x64`. Each archive is self-contained (no separate SDK needed) |
+| **deemesh SDK** | **[⬇ deemesh-sdk v1.1.1](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-sdk-v1.1.1)** | Windows (32/64) · Linux (64) native libraries + C header + docs (KO/EN) |
+| **deemesh-hub** | **[⬇ deemesh-hub v1.1.1](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-hub-v1.1.1)** | Standalone HTTP server: `win` · `linux-x64`. Each archive is self-contained (no separate SDK needed) |
 
 Each archive contains a `README`, documentation, `LICENSE` and `THIRD-PARTY-NOTICES`. The Windows hub archive carries both bitnesses: run `deemesh-hub-x64.exe` and keep the two files together; bitness (yours, and your Fanuc DLL's) is the hub's problem, not yours. The SDK and the hub are versioned independently; take the latest of each.
 
