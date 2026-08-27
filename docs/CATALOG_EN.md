@@ -291,6 +291,8 @@ The program **execution status** code (with `desc`). The "is it running now" cou
 
 Each control expresses its own automatic-operation state differently. deemesh does not override this: whether an alarm halts machining depends on the alarm (informational ones do not), and we have no per-alarm knowledge of that, so demoting the value would be wrong in the cases that are fine.
 
+**What an emergency stop gives also differs by machine type.** On Fanuc, stopping automatic operation with the emergency stop read `0` (Reset) in our test environment (NC Guide); on Siemens it is `5` (Interrupted). The Fanuc result is what that machine did, so do not take it as settled for every control. **To detect the emergency stop itself use `/machine/channel/emergencyStatus`, not this address** - that one absorbs the difference between machine types.
+
 **So do not read `3` (Run) as "it is cutting right now".** The value means automatic operation has not ended, not that an axis is moving. Two situations that read `3` while the machine stands still are confirmed: **an alarm is up** (`alarmStatus` is not `0`) and **the control is waiting for an M code to be acknowledged** (no alarm at all). If you need to know whether it is really halted, watch whether `/machine/channel/programCurrentBlock` stops changing, or read `alarmStatus` alongside.
 
 **Mitsubishi reports only `0`-`3`.** This control gives a set of automatic-operation flags (in operation / executing / paused) rather than a status code, and deemesh combines them into the vocabulary above. The `Stop` / `Hold` split maps exactly onto the vendor's own definitions - what it calls "pause" means *halted while executing a command*, which is the `Hold` state above, and the remaining case (in automatic operation but neither executing nor paused) is `Stop`, standing at a block boundary.
@@ -329,6 +331,8 @@ write: []
 ```
 
 The emergency-stop status (with `desc`): `0` = normal, `1` = emergency stop. On Fanuc a transient `2` (Reset: the moment the E-stop is being released, under a second) can flash by (confirmed in our test environment); treating anything non-`0` as "not normal" is the safe reading.
+
+**Use this address to detect an emergency stop.** Which channel an emergency stop surfaces on differs by machine type, so looking for it in the alarm list yourself gives different answers on different controls. This address absorbs that difference and answers with the same meaning on all three.
 
 On Mitsubishi it is `1` whenever the alarm list carries an `EMG` class; it is caught **regardless of the cause** of the emergency stop.
 
@@ -1714,7 +1718,7 @@ read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
 write: []
 ```
 
-The spindle **S command value**. Returns `float`. **No `unit` is attached**: what the command means depends on the spindle speed mode (a rotational speed under constant-speed mode, a surface speed under constant-surface-speed mode), and that holds on all three machine types. **Fanuc is the channel modal S value** (the `spindle` filter is ignored; the S command is a channel-level concept); Siemens is the per-spindle `cmdSpeed`, and Mitsubishi the per-spindle S command modal value.
+The spindle **S command value**. Returns `float`. **No `unit` is attached**: what the command means depends on the spindle speed mode (a rotational speed under constant-speed mode, a surface speed under constant-surface-speed mode), and that holds on all three machine types. Which mode is active is `/machine/channel/gModalCategory/gModal?gModalCategory=8`: the response's `desc` carries the machine-independent meaning - `constant surface speed` means a surface speed (`G96`, on Siemens also `G961`/`G962`), `constant spindle speed (rpm)` means a rotational speed (`G97`, on Siemens also `G971`/`G972`/`G973`). **Fanuc is the channel modal S value** (the `spindle` filter is ignored; the S command is a channel-level concept); Siemens is the per-spindle `cmdSpeed`, and Mitsubishi the per-spindle S command modal value.
 
 This address was previously named `/machine/channel/spindle/speedCommanded`; the old address keeps working permanently as-is, but the documentation and the dashboard describe only this name.
 
