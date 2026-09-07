@@ -282,9 +282,9 @@ write: []
 
 The **number** of active alarms/messages (= the count of `alarmList` items, regardless of severity). Returns `int`. Use it when you only need the count, like a dashboard badge.
 
-- **Cost note (Fanuc)**: the list is fetched and counted, so internally it costs the **same** as `alarmList`. Requesting both together in a batch merges them into a single fetch. If you only need a low-cost presence check, use `alarmStatus`
-- **Cost note (Siemens)**: same as the two above; the count is taken from the **same event snapshot** as `alarmList`, so it costs the same, and requesting both together merges them into a single fetch. Being an NCK-global count, the `channel` value is ignored (same policy as `alarmList`)
-- **Cost note (Mitsubishi)**: same as Fanuc; the list is fetched and counted, so it costs the same as `alarmList`, and requesting both together merges them into a single fetch
+- **Cost note (Fanuc)**: the list is fetched and counted, so internally it costs the **same** as `alarmList`. If you only need a low-cost presence check, use `alarmStatus`
+- **Cost note (Siemens)**: same as the two above; the count is taken from the **same event snapshot** as `alarmList`, so it costs the same. Being an NCK-global count, the `channel` value is ignored (same policy as `alarmList`)
+- **Cost note (Mitsubishi)**: same as Fanuc; the list is fetched and counted, so it costs the same as `alarmList`
 
 ## /machine/channel/alarmList
 ```yaml
@@ -485,6 +485,8 @@ The axis's workpiece coordinate (absolute coordinate). Returns `float`.
 
 This value is measured at the **tool tip** and is the result after the active work offset, rotation, scaling, mirroring and tool length compensation have **all been applied**; it is the final coordinate the machine computed, so there is no need to derive it from `machinePosition` (subtraction does not give the right answer).
 
+**When an edited table value reaches this coordinate differs by control.** Siemens fixes work offsets and tool offsets **at activation time**. Programming G500 or G54 to G599 copies the table (`$P_UIFR`) into the channel's active frame (`$P_IFRAME`) (Basic Functions K2 section 11.5), and a change to tool offset data takes effect the next time a T or D number is programmed (Programming Fundamentals section 6.7; immediate effect only on a machine with `MD9440` set, a setting the manual flags as a collision risk). So editing G54 or a tool length at the panel while a program runs leaves this value unchanged until the next activation (or a restart after reset) (confirmed on the test bench: G54 X 80.4 to 95.0 and tool length 100 to 105, neither reflected). A coordinate-watching app should not treat "the table changed but the coordinate did not move" as a fault. On Fanuc, parameter `5001#6` (EVO: `0` for the next G43/H block, `1` for the next buffered block) decides when a tool length change applies and `5001#4` (EVR) the radius, while a work offset change is reflected in this value at once (confirmed on the simulator). Mitsubishi refuses table edits during automatic operation altogether (a `workOffsetValue` write answers status `-22`); where the configuration allows it (parameter `#11017`), a change is valid from the next block or after several subsequent blocks (Instruction Manual section 6.8).
+
 The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual section 9.3.5). This address carries no `unit` field, because the unit is not fixed per address.
 
 ## /machine/channel/axis/relativePosition
@@ -537,11 +539,15 @@ stored in the table      workOffsetValue?workOffset=G54     80.400   the active 
 
 The basic reference is the share that goes in when the operator sets the zero point in JOG with "set actual value", by scratching or with a measuring cycle (the Siemens system frame `$P_SETFRAME`), so it is added whichever coordinate system is selected. Its role matches `EXT` on Fanuc and Mitsubishi, but on Siemens it lives outside the table, so `workOffsetValue` does not show it. Compare the two addresses when diagnosing "the setting is unchanged but the part is off"; reading only the stored value hides the share added outside the table.
 
+**This value is fixed at activation time.** Programming G500 or G54 to G599 copies the table (`$P_UIFR`) into the channel's active frame (`$P_IFRAME`); editing the table afterwards leaves this value unchanged until the next activation (or a restart after reset) (Basic Functions K2 section 11.5; confirmed on the test bench: editing G54 X from 80.4 to 95.0 during a run left this value at 105.4). Meanwhile `workOffsetValue` reports the new value, so when the two differ it means "the table changed but is not yet in effect". A coordinate-watching app should not treat that difference as a fault.
+
 ⚠️ **Tool compensation is not in this layer.** This value covers "where the workpiece origin was moved to"; "how long the tool is" is the next layer. That is why, on any control, subtracting `workPosition` from `machinePosition` does not give this value: that difference also contains the tool length compensation, so it is off on the tool axis. Rotation, scaling and mirroring are not in it either. If you need workpiece coordinates, read `/machine/channel/axis/workPosition`; that is the result after the machine has applied all of them.
 
 This address takes no `workOffset` filter; it is "whatever is in effect", so there is no designator to choose. `axis=1-3` expansion is supported, and writing is not (a summed result is not something you write back).
 
-**Siemens only.** On Fanuc and Mitsubishi, no call that reports this total directly was found within the vendor API range deemesh uses, so it is not supported there. On those controls, read the common offset separately with `workOffset=EXT` and add it to the active coordinate system's value, but that sum **does not mean the same thing as this address**: it omits any shift set by the program (`G92`, `G52` and the like), which is precisely the difference this address exists to reveal.
+**Siemens only, because this value is not computed by deemesh: the control itself holds it.** SINUMERIK keeps the sum of the active frames (`$P_ACTFRAME`) as one value and exposes it over OPC-UA. Fanuc (FOCAS2) and Mitsubishi (EZSocket) have no such value. What they offer is the **table** of `EXT` and `G54` to `G59`, and there is no call that reads the amount of a program-set `G52` (local coordinate system) or `G92` (coordinate system setting) shift. A sum of the table entries would lack those two shifts and be **plausible yet possibly wrong**, so deemesh does not produce it (the rule against inventing a derived value the control does not report). On those two controls the address therefore answers status `-20`.
+
+**How to get what you need on Fanuc and Mitsubishi**: ① If you need coordinates, read `/machine/channel/axis/workPosition`; the control computed it with `G52`, `G92` and tool compensation all applied, so this address is not needed. ② If you need the settable offset itself, read `workOffsetValue` for `EXT` and for the active coordinate system (check it with `gModalCategory=7`) and add them. Both controls apply a table edit at once, so that sum is the settable offset in effect. ③ Whether the program has set `G52` or `G92` is visible through `gModalList` and `gModalCategory`, but no API reports the amount. If you need a total that includes them, judge it from the relation between `workPosition` and `machinePosition`, bearing in mind that tool compensation is mixed into that difference.
 
 The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual section 9.3.5). This address carries no `unit` field, because the unit is not fixed per address.
 
@@ -1156,11 +1162,21 @@ The `workOffset` filter **takes the shop-floor G-code notation directly** (an op
 
 **On Siemens the value is the coarse offset plus the fine offset.** The machine applies that sum and the operator panel shows them as two cells of one offset (`Coarse` and `Fine`), so this address gives you **the offset actually in effect**; comparing it against the panel's `Coarse` cell alone can look like a mismatch. To read the fine part on its own, use `/machine/channel/workOffset/axis/workOffsetFineValue`. Fanuc and Mitsubishi have no fine offset, so their value is single; that is what makes this address mean the same thing on all three machine types.
 
-⚠️ **This value is the stored translation.** Two more things bear on it. ① A work coordinate system can also carry **rotation, scaling and mirroring** (`workOffsetRotation`, `workOffsetScale`, `workOffsetMirrorOn`), and where those are set the coordinate transform is not determined by this value alone. ② The total actually in effect can differ from this value, because a basic reference and other frames add to it (`totalWorkOffsetValue`). If you need part coordinates, do not compute them; read `/machine/channel/axis/workPosition`. On an ordinary setup that only translates, rotation is `0`, scaling is `1` and mirroring is `false`, so this value *is* the transform.
+⚠️ **This value is the stored translation.** Two more things bear on it. ① A work coordinate system can also carry **rotation, scaling and mirroring** (`workOffsetRotation`, `workOffsetScale`, `workOffsetMirrorOn`), and where those are set the coordinate transform is not determined by this value alone. ② The total actually in effect can differ from this value, because a basic reference and other frames add to it (`totalWorkOffsetValue`; Siemens only, and that section explains how to get the offset in effect on Fanuc and Mitsubishi). If you need part coordinates, do not compute them; read `/machine/channel/axis/workPosition`. On an ordinary setup that only translates, rotation is `0`, scaling is `1` and mirroring is `false`, so this value *is* the transform.
+
+**Whether the table can be edited during automatic operation, and when an edit reaches the coordinates, differ by control.** This address is the stored value, so it reports a panel edit **at once**.
+
+| Control | Editing during automatic operation | Effect on coordinates |
+|---|---|---|
+| Fanuc | Allowed | Reflected in `workPosition` at once (confirmed on the simulator) |
+| Siemens | Allowed (at the panel) | Not until the next activation (programming G500 or G54 to G599, or a restart after reset); the table is copied into the channel's active frame at that moment (Basic Functions K2 section 11.5; confirmed on the test bench). `totalWorkOffsetValue` reports what is in effect now |
+| Mitsubishi | Refused by the control during automatic operation: a write to this address answers status `-22`, and the panel shows "Executing automatic operation" (confirmed on the simulator). The manual ties permission during automatic operation to parameter `#11017` (T-ofs set at run) | Where allowed, valid from the next block or after several subsequent blocks (Instruction Manual section 6.8) |
+
+On Siemens, the time the two addresses differ is exactly the "changed but not yet applied" state; a coordinate-watching app should not treat it as a fault.
 
 `axis` is the axis number (1–) or the axis name. `axis=1-3` · `workOffset=G54,G55` expansion is supported; for Fanuc, axis expansion of the same workOffset is bundled into a single FOCAS call.
 
-Writes take `{"value": 25.4}` (a single axis). **Supported on Fanuc and Mitsubishi**: on Siemens, writing this value directly **is accepted by the machine yet changes nothing** (observed in our test environment); a separate machine-side activation procedure is required and this protocol does not expose it, so the write is rejected with status `-20`.
+Writes take `{"value": 25.4}` (a single axis). **Supported on Fanuc and Mitsubishi. On Siemens the write answers status `-20`, and that is a deliberate exclusion, not something unimplemented.** The node holding this value is read/write in the vendor variable manual (`$P_UIFR`), but the same section states that **the PI service `SETUFR` has to be called to activate the settable frames** (NC Variables List Manual section 3.5.7, Area C Block FU). The OPC-UA server offers no way to invoke it (only file handling and tool management appear under `/Methods`), so the write is accepted while the offset actually in effect and the operator panel display both stay as they were (observed on our test bench). A write that looks like it succeeded and does nothing is exactly what deemesh refuses to pass through. To change an offset on Siemens, set it at the operator panel.
 
 The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual section 9.3.5). This address carries no `unit` field, because the unit is not fixed per address.
 
@@ -1693,7 +1709,7 @@ write: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
 
 Reads/writes a **macro variable (Fanuc, Mitsubishi) / R parameter (Siemens)** (read + write). Put the variable number in the `variable` filter (e.g. `variable=100` → Fanuc and Mitsubishi `#100`, Siemens `R100`). Returns `float`; writes take `{"value": 3.14}`. **Reads** support range/comma expansion: `variable=100-105` is an array of 6 values. Writes always target a single variable (expansion syntax is rejected with status `-13`: the rule shared by every write). A **vacant macro variable on Fanuc or Mitsubishi reads as `null`**; this is the state the control's custom-macro screen shows as an empty cell (`DATA EMPTY` on Fanuc), and it is distinct from the value `0`. In a range expansion only that slot becomes `null` (e.g. `[3.14, null]`).
 
-**Which numbers exist depends on the machine and its options.** deemesh keeps no list and passes the number through, so a number that machine does not have comes back as **status `-18`** (on reads and writes alike, with the vendor's own reason in the error string). The only thing to fix is the `variable` value, and the control's variable screen tells you which numbers that machine actually has. If a missing number is mixed into a range expansion, the **whole request fails with status `-15`** (no partial array is returned). Distinguish this from vacant variables, which are not errors but `null` elements and do not break the expansion. A number outside the syntactic range (`0`-`89999` on Fanuc) is the same status `-18`, except that one is rejected immediately without asking the machine.
+**Which numbers exist depends on the machine and its options.** A number that machine does not have comes back as **status `-18`** (on reads and writes alike). The only thing to fix is the `variable` value, and the control's variable screen tells you which numbers that machine actually has. On Fanuc and Mitsubishi, deemesh keeps no list and passes the number through, so the error string carries the vendor's own reason. **On Siemens, deemesh knows the number of R parameters.** It reads `numRParams` (machine data `28050`) per channel when it connects, and since **R numbering starts at `0`**, a number outside `0` to count-1 is rejected immediately with status `-18` without asking the machine, and the error string carries the allowed range and the count (e.g. `expected 0-99`). So checking a number with a read before writing works on Siemens too. If a missing number is mixed into a range expansion, the **whole request fails with status `-15`** (no partial array is returned). Distinguish this from vacant variables, which are not errors but `null` elements and do not break the expansion. A number outside the syntactic range (`0`-`89999` on Fanuc) is the same status `-18`, except that one is rejected immediately without asking the machine.
 
 **Writing a variable back to vacant is not supported**: the value is a single number, and clearing a variable that has one requires the operator panel.
 
@@ -2014,10 +2030,12 @@ Information about a single entry at the path (`object`). The key set is **always
 | Key | Type | When unavailable |
 |---|---|---|
 | `name` | `string` | n/a |
-| `sizeBytes` | `int` | `null` for a folder, or when the size could not be read |
+| `sizeBytes` | `int` | `null` for a folder, or when the size could not be read. Siemens and Mitsubishi report the content's byte count; **Fanuc reports the allocated size (in 500-byte units)**, so a 22-byte program lists `500` |
 | `modifiedAt` | `string` | `null` for a folder, or when the machine does not provide a modification time (always `null` on Siemens) |
 | `isDir` | `boolean` | n/a |
-| `comment` | `string` | `null` for a folder, or when the machine does not provide comments (always `null` on Siemens) |
+| `comment` | `string` | `null` for a folder, or when the machine does not provide comments (always `null` on Siemens; see below) |
+
+**`comment` is the program comment the control delivers together with the listing.** On Fanuc it is the parenthesized comment on the O-number line, on Mitsubishi the comment column of the program list (the parenthesized comment in the first block), so **one listing gives it without opening any file** (confirmed on the simulators). **On Siemens it is always `null`, because the OPC-UA file system has no comment attribute on a file**; a `;` comment on the first line is file content and shows only when you read `fileContent`. If you must tell programs apart from the listing alone, separate them on Siemens by **folder or name** instead of a comment: a subfolder (created with `directoryExists`) and a name prefix both show up in a single `entryList`. Reading `fileContent` for every candidate costs one transfer per file, which adds up on a slow link.
 
 A trailing `/` on the path forces a folder; without it files are searched first. Missing entries are an error.
 
@@ -2036,6 +2054,8 @@ A folder that does not exist returns status `-18`.
 
 An empty folder answers `[]`.
 
+`comment` comes with the single listing on Fanuc and Mitsubishi and is always `null` on Siemens. The reason and the alternative (separating programs by folder or name) are in the `comment` note of `entry`.
+
 ## /machine/ncMemoryPath/entryName
 ```yaml
 value_type: "string"
@@ -2045,7 +2065,7 @@ read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
 write: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
 ```
 
-The **name of the entry** that `ncMemoryPath` points at. Reading returns **the name the machine holds for that entry**, and writing performs a **rename**. The read answers for a file or a folder alike, and rejects a path with nothing at it with status `-18`, the same judgement `entry` and `fileExists` make. What comes back is the machine's own name, not the string you asked with, so a difference in spelling shows the machine's version. Writes take `{"value": "new name"}`, and path separators are not allowed, common to files/folders. **A root cannot be renamed**: if `ncMemoryPath` is a single `//name` segment such as `//CNC_MEM`, `//NC`, `//PRG` or an external drive, the request is refused with status `-18` (filter value error) without touching the machine (the same rule as the root-delete refusal of `directoryExists`). It refers to the same "entry" as `entry`/`entryList`.
+The **name of the entry** that `ncMemoryPath` points at. Reading returns **the name the machine holds for that entry**, and writing performs a **rename**. The read answers for a file or a folder alike, and rejects a path with nothing at it with status `-18`, the same judgement `entry` and `fileExists` make. What comes back is the machine's own name, not the string you asked with, so a difference in spelling shows the machine's version. Writes take `{"value": "new name"}`, and path separators are not allowed, common to files/folders. **A root cannot be renamed**: if `ncMemoryPath` is a single `//name` segment such as `//CNC_MEM`, `//NC`, `//PRG` or an external drive, the request is refused with status `-18` (filter value error) without touching the machine (the same rule as the root-delete refusal of `directoryExists`). It refers to the same "entry" as `entry`/`entryList`. **Siemens does not rename a file a channel is using** (the selected main program, a subprogram that is running or that the look-ahead has opened). That case answers status `-22` (machine state); reset the channel or try again after the program has ended (the same rule as the delete in `fileExists`).
 
 ## /machine/ncMemoryPath/directoryExists
 ```yaml
@@ -2082,6 +2102,8 @@ Checks whether a **file** exists at the path (read) and declaratively writes the
 
 A trailing `/` in the path is ignored (the kind is fixed by the address). For folders, use `directoryExists`.
 
+**Siemens does not delete a file a channel is using.** The selected main program, the running subprogram and a subprogram **the look-ahead has already opened** answer status `-22` (machine state) on delete. Because the lock window is wider than "executing right now", a delete can seem to succeed at one moment and fail at another while the same program runs, but it is not random. A subprogram the main only references and has not yet called can be deleted (confirmed on the test bench). Reset the channel or delete again after the program has ended.
+
 ## /machine/ncMemoryPath/fileContent
 ```yaml
 value_type: "string"
@@ -2091,11 +2113,15 @@ read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
 write: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
 ```
 
-Reads the **content** of an NC file (download) and writes it (upload: creates if absent, overwrites if present). The value is a string (program text).
+Reads the **content** of an NC file (download) and writes it (upload: creates the file if absent; what happens when it already exists depends on the control, see below). The value is a string (program text).
 
 - **Fanuc write auto-handling**: if `%` is absent, it is inserted automatically; if there is no leading O number/`<name>`, it is inserted automatically based on the path's file name. The saved file name is **based on the O number/name in the content**
 - **Siemens and Mitsubishi write the content verbatim.** Nothing is inserted, and the saved file name is **the file name in the path**: the file is stored under the path even when the O number in the content differs (the opposite of Fanuc). Include `%` or an O number yourself if you need them
+- **Writing to a file that already exists**: on Fanuc, when parameter `3201#2` (REP) is `1` the existing program is deleted and the new one registered (with `0` the answer is status `-17`, FOCAS2 detail error 4; an edit-protected program answers status `-17` even with `1`; parameter manual B-64490EN). Mitsubishi overwrites (confirmed on the simulator). **Siemens does not overwrite: the write answers status `-21` (already exists) and the existing content is untouched** (confirmed on the test bench). To replace it, write `false` to `fileExists` first and then upload. deemesh does not delete and recreate on your behalf, because if the creation failed the original would be gone. That decision belongs to the caller
+- **Creating a file under a name a channel is using, on Siemens**: if a channel holds that name (the selected main program, or a subprogram that is running or that the look-ahead has opened; typically when re-creating a file right after deleting it), the file is created but the `Open` that would write its content answers status `-22` (machine state). deemesh then **deletes the empty file it just created within the same call** (back to the state before the call). If the channel holds even that empty file so it cannot be removed, the error text says so; delete it once the channel releases it
 - To delete a file, write `false` to `fileExists`
+
+**A write's `status` 0 means the transfer is complete.** On all three controls deemesh checks the control's return value for every chunk and then confirms the close before answering 0 (Fanuc `cnc_download4` and `cnc_dwnend4`, Siemens `Write` and `Close`, Mitsubishi `WriteFile` and `CloseFile3`). A failure midway is an error; Mitsubishi discards the file and Siemens removes the partly created one. So **there is no need to read the file back to confirm the transfer.** A byte comparison after reading back differs on Fanuc anyway, because of the inserted `%` and O number and the line-ending normalization, and the listing's `sizeBytes` on Fanuc is an allocation size in 500-byte units (writing 22 bytes lists `500`), not the content length (confirmed on the simulator and a real machine). That is why this address puts no size or hash in the write response: a size means different things per control, and a hash cannot be produced without reading back, which only moves that cost inside. If you need to verify content, read `fileContent` and compare by **meaning** (program number, blocks).
 
 ## /machine/channel/toolOffsetCount
 ```yaml
