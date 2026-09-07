@@ -1,6 +1,6 @@
 # deemesh
 
-**A single, vendor-neutral interface for CNC and industrial equipment.**
+**A unified CNC interface: one address model over Fanuc, Siemens and Mitsubishi controls.**
 
 [![License: Freeware](https://img.shields.io/badge/license-Freeware-brightgreen.svg)](LICENSE)
 
@@ -34,7 +34,7 @@ That one address means the same thing on any supported machine. deemesh absorbs 
 
 | | What it is | Who it's for |
 |---|---|---|
-| **deemesh SDK** | A native library (`.dll` / `.so`) callable from C#, Python, C++ and Rust over the C ABI | Developers **integrating** equipment communication into their own application |
+| **deemesh-sdk** | A native library (`.dll` / `.so`) callable from C#, Python, C++ and Rust over the C ABI | Developers **integrating** equipment communication into their own application |
 | **deemesh-hub** | A standalone HTTP server (plain GET/POST, no code required) | Anyone who wants to use it **over HTTP without writing code**, or to **try it first** |
 
 Both are free. Grab them from **Releases** below.
@@ -147,9 +147,9 @@ POST /machine/channel/variable/variableValue?channel=1&variable=100      ← wri
 > match your process (bitness for `fwlib*`, one control series per process, Mitsubishi on
 > the 32-bit Windows library only). The FFI guide in the download spells this out.
 
-> **Test environment**: this release was tested on a real SINUMERIK 840D sl control (bench) for Siemens, a real FANUC Series 31i control (bench), a production machine and FANUC NC Guide for Fanuc, and NC Trainer2 plus (M800 series) for Mitsubishi. On other models some addresses may not be available; the catalog states support per address.
+> **Test environment**: this release was tested on a real SINUMERIK 840D sl control (bench) for Siemens, a real FANUC Series 31i control (bench), a production machine and the FANUC NC Guide simulator for Fanuc, and the NC Trainer2 plus simulator (M800 series) for Mitsubishi. On other models some addresses may not be available; the catalog states support per address.
 
-> More protocols are planned. If you need a specific machine or protocol, get in touch.
+> If you need a specific machine or protocol, get in touch.
 
 ---
 
@@ -159,8 +159,8 @@ Browse **[all releases](https://github.com/spoonhasi/deemesh/releases)**, or jum
 
 | Product | Latest release | Contents |
 |---|---|---|
-| **deemesh SDK** | **[⬇ deemesh-sdk v1.3.0](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-sdk-v1.3.0)** | Windows (32/64) · Linux (64) native libraries + C header + docs (KO/EN) |
-| **deemesh-hub** | **[⬇ deemesh-hub v1.3.0](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-hub-v1.3.0)** | Standalone HTTP server: `win` · `linux-x64`. Each archive is self-contained (no separate SDK needed) |
+| **deemesh-sdk** | **[⬇ deemesh-sdk v1.4.0](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-sdk-v1.4.0)** | Windows (32/64) · Linux (64) native libraries + C header + docs (KO/EN) |
+| **deemesh-hub** | **[⬇ deemesh-hub v1.4.0](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-hub-v1.4.0)** | Standalone HTTP server: `win` · `linux-x64`. Each archive is self-contained (no separate SDK needed) |
 
 Each archive contains a `README`, documentation, `LICENSE` and `THIRD-PARTY-NOTICES`. The Windows hub archive carries both bitnesses: run `deemesh-hub-x64.exe` and keep the two files together; bitness (yours, and your Fanuc DLL's) is the hub's problem, not yours. The SDK and the hub are versioned independently; take the latest of each.
 

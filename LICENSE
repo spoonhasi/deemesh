@@ -1,4 +1,4 @@
-deemesh: Industrial Equipment Communication SDK
+deemesh-sdk: Industrial Equipment Communication SDK
 Freeware License
 
 Copyright © 2026 spoonhasi
@@ -48,7 +48,7 @@ OWNERSHIP
 The Author retains all right, title, and interest in and to the Software,
 including all intellectual property rights therein. All rights not expressly
 granted herein are reserved. This license does not grant any rights in the
-name "deemesh" or any associated marks.
+names "deemesh" or "deemesh-sdk" or any associated marks.
 
 ==============================================================================
 NO SUPPORT, MAINTENANCE, OR UPDATE OBLIGATION
@@ -180,7 +180,7 @@ above. Questions may be directed to the contact address, subject to the
 KOREAN LANGUAGE SUMMARY (참고용 요약, 법적 효력 없음)
 ==============================================================================
 
-본 deemesh 소프트웨어(이하 "본 소프트웨어")는 spoonhasi("저작자")가 **무료로
+본 deemesh-sdk 소프트웨어(이하 "본 소프트웨어")는 spoonhasi("저작자")가 **무료로
 배포**하는 프리웨어입니다. 저작권은 저작자가 보유합니다.
 
 ■ 허용: 누구나 **무료로**, 상업적 용도를 포함해 **자유롭게 사용**할 수 있으며,
