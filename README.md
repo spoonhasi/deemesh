@@ -24,7 +24,7 @@ On a shop floor, the same value sits behind different interfaces: FOCAS2 on one 
 /machine/channel/axis/machinePosition?channel=1&axis=1
 ```
 
-That one address means the same thing on any supported machine. deemesh absorbs the vendor differences underneath.
+That address is the same on every supported control, and deemesh maps it onto each vendor's interface underneath. Where controls behave differently, or an address is not available on one of them or needs an option installed on the machine, the catalog says so for that address.
 
 **The interface itself is public.** Browse the complete address catalog here: **[English](docs/CATALOG_EN.md)** · **[한국어](docs/CATALOG_KO.md)**
 
@@ -49,10 +49,10 @@ The fastest way to see what deemesh does:
 2. Put your machine's IP and protocol in `config.json` (an example file is included).
 3. Run `deemesh-hub-x64.exe` (Windows will ask once whether to allow it through the firewall. Click **Allow** if other PCs will call it; it is not a virus warning), then open **`http://localhost:8080/admin`** in a browser.
 4. Open the **address catalog** (`/admin/address`) to:
-   - browse a tree of **everything the machine exposes**, and
+   - browse a tree of **every address deemesh supports**, with which protocols read and write each one, and
    - select any address and **run a GET (read) or POST (write) right there**.
 
-Connect it to a real machine and you can see, immediately and visually, exactly what you can read and write. If you want to evaluate before committing, this catalog is the front door.
+Connect it to a real machine and you can try, right away and in the browser, what reads and writes on that machine. If you want to evaluate before committing, this catalog is the front door.
 
 ```bash
 # Calling it directly is just HTTP
@@ -76,7 +76,7 @@ The download package is the native library plus its C header, a **standard C ABI
 | **Rust** | `extern "C"`, or load at runtime with `libloading` |
 | **Java, Go, others** | JNI / Panama, cgo, … |
 
-There are nine functions in total. `deemesh.h` is the authoritative declaration (signatures, the `DeemeshResult` layout, and the error-code macros) and `FFI_EN.md` / `FFI_KO.md` in the download walk through calling them, with worked examples in C/C++ and C#.
+There are nine functions in total. `deemesh.h` is the authoritative declaration (signatures, the `DeemeshResult` layout, and the error-code macros) and `FFI_EN.md` / `FFI_KO.md` in the download walk through calling them, with worked examples in C#, Python and C/C++.
 
 ```c
 DeemeshHandle h = NULL;
@@ -109,7 +109,7 @@ POST /machine/channel/variable/variableValue?channel=1&variable=100      ← wri
 
 - **GET reads, POST writes.** Responses are always JSON: a read answers `{"status":0,"value":...}`, a write `{"status":0}`.
 - Every write takes the same `{"value": ...}` envelope.
-- Addresses and filters are vendor-neutral: the same address means the same thing on Fanuc, on Siemens and on Mitsubishi.
+- Addresses and filters are vendor-neutral: the same address is used on Fanuc, on Siemens and on Mitsubishi, and where the controls differ the catalog states it for that address.
 
 > ⚠️ **Writes change the real state of the machine.** Verify the target and the value, and
 > test in a safe environment before using it on production equipment. See the package
@@ -134,7 +134,7 @@ POST /machine/channel/variable/variableValue?channel=1&variable=100      ← wri
 > - **Siemens** needs the **OPC-UA server option licensed and enabled** on the machine
 >   (a separately purchased Siemens option). A machine without it refuses the
 >   connection outright. Support has been tested on **SINUMERIK
->   840D sl**; testing on 828D is limited, and some addresses may not be available there.
+>   840D sl**; 828D has not been tested, so some addresses may not be available there.
 > - **Mitsubishi** needs **Mitsubishi Electric's EZSocket installed** on the PC (obtained
 >   from Mitsubishi Electric; a 32-bit Windows component), and the machine's control
 >   series in the `system_type` setting. The hub hosts the Mitsubishi adapters in
@@ -147,7 +147,7 @@ POST /machine/channel/variable/variableValue?channel=1&variable=100      ← wri
 > match your process (bitness for `fwlib*`, one control series per process, Mitsubishi on
 > the 32-bit Windows library only). The FFI guide in the download spells this out.
 
-> **Test environment**: this release was tested on a real SINUMERIK 840D sl control (bench) for Siemens, a real FANUC Series 31i control (bench), a production machine and the FANUC NC Guide simulator for Fanuc, and the NC Trainer2 plus simulator (M800 series) for Mitsubishi. On other models some addresses may not be available; the catalog states support per address.
+> **Test environment**: this release was tested in three kinds of environment: a **simulator** (control software running on a PC), a **bench** (a real control with no machine attached) and a **machine tool** (a complete machine). For Siemens, a SINUMERIK 840D sl bench; for Fanuc, a FANUC Series 31i bench, a 31i-B machine tool and the FANUC NC Guide simulator; for Mitsubishi, the NC Trainer2 plus simulator (M800 series). On other models some addresses may not be available; the catalog states support per address.
 
 > If you need a specific machine or protocol, get in touch.
 
@@ -159,8 +159,8 @@ Browse **[all releases](https://github.com/spoonhasi/deemesh/releases)**, or jum
 
 | Product | Latest release | Contents |
 |---|---|---|
-| **deemesh-sdk** | **[⬇ deemesh-sdk v1.4.0](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-sdk-v1.4.0)** | Windows (32/64) · Linux (64) native libraries + C header + docs (KO/EN) |
-| **deemesh-hub** | **[⬇ deemesh-hub v1.4.0](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-hub-v1.4.0)** | Standalone HTTP server: `win` · `linux-x64`. Each archive is self-contained (no separate SDK needed) |
+| **deemesh-sdk** | **[⬇ deemesh-sdk v1.4.1](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-sdk-v1.4.1)** | Windows (32/64) · Linux (64) native libraries + C header + docs (KO/EN) |
+| **deemesh-hub** | **[⬇ deemesh-hub v1.4.1](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-hub-v1.4.1)** | Standalone HTTP server: `win` · `linux-x64`. Each archive is self-contained (no separate SDK needed) |
 
 Each archive contains a `README`, documentation, `LICENSE` and `THIRD-PARTY-NOTICES`. The Windows hub archive carries both bitnesses: run `deemesh-hub-x64.exe` and keep the two files together; bitness (yours, and your Fanuc DLL's) is the hub's problem, not yours. The SDK and the hub are versioned independently; take the latest of each.
 
@@ -178,7 +178,7 @@ FANUC, FOCAS, SIEMENS, SINUMERIK, Mitsubishi Electric, EZSocket, OPC-UA and all 
 
 ## About this project
 
-A machine tool exposes a great many properties, and each control describes them in its own way. deemesh exists to make those properties **easy to find and easy to reach**: one address model, the same on every supported control, that a person can read and a program can call. Such a model depends on **consistency**: every address must keep the same meaning on every control. To protect that, the address model is curated by a single maintainer under one set of principles rather than by open contribution. The interface itself is public, and suggestions are welcome.
+A machine tool exposes a great many properties, and each control describes them in its own way. deemesh exists to make those properties **easy to find and easy to reach**: one address model that a person can read and a program can call, whichever control is behind it. Which addresses a particular machine answers depends on its control and its installed options, and the catalog records this for each address. Such a model depends on **consistency**: an address means the same thing on every control that supports it, and where a value is the vendor's own numbering that cannot be unified, such as PLC addresses or parameter numbers, the catalog says so. To protect that, the address model is curated by a single maintainer under one set of principles rather than by open contribution. The interface itself is public, and suggestions are welcome.
 
 It is distributed free of charge in order to spread that interface as widely as possible.
 
