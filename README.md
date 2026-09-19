@@ -135,17 +135,22 @@ POST /machine/channel/variable/variableValue?channel=1&variable=100      ← wri
 >   (a separately purchased Siemens option). A machine without it refuses the
 >   connection outright. Support has been tested on **SINUMERIK
 >   840D sl**; 828D has not been tested, so some addresses may not be available there.
-> - **Mitsubishi** needs **Mitsubishi Electric's EZSocket installed** on the PC (obtained
+> - **Mitsubishi** needs **Mitsubishi Electric's EZSocket (`FCSB1224W100`) installed** on the PC (obtained
 >   from Mitsubishi Electric; a 32-bit Windows component), and the machine's control
->   series in the `system_type` setting. The hub hosts the Mitsubishi adapters in
->   per-series 32-bit child processes on its own, so mills and lathes of different series
->   coexist on one hub while the hub itself stays 64-bit.
+>   series in the `system_type` setting. The hub hosts the Mitsubishi adapters in a
+>   32-bit child process on its own, so the hub itself stays 64-bit. Mills and lathes of
+>   different series can be connected together, on the hub and in one SDK process alike.
 >
 > The vendor pieces (the FOCAS2 library, the OPC-UA option, EZSocket) are not something
 > deemesh can supply; they come from the machine's vendor. One note for **SDK** users:
 > the child-process conveniences above belong to the **hub**. The SDK library itself must
-> match your process (bitness for `fwlib*`, one control series per process, Mitsubishi on
-> the 32-bit Windows library only). The FFI guide in the download spells this out.
+> match your process (bitness for `fwlib*`, Mitsubishi on the 32-bit Windows library only).
+> The FFI guide in the download spells this out.
+>
+> **Correction:** this page and the documentation of releases 1.1.0 through 1.4.1 said that
+> EZSocket lets one process use only one Mitsubishi control series. **That was a mistake in
+> our testing, not a behavior of Mitsubishi's EZSocket**; repeating the test with the same
+> EZSocket version did not reproduce it.
 
 > **Test environment**: this release was tested in three kinds of environment: a **simulator** (control software running on a PC), a **bench** (a real control with no machine attached) and a **machine tool** (a complete machine). For Siemens, a SINUMERIK 840D sl bench; for Fanuc, a FANUC Series 31i bench, a 31i-B machine tool and the FANUC NC Guide simulator; for Mitsubishi, the NC Trainer2 plus simulator (M800 series). On other models some addresses may not be available; the catalog states support per address.
 
@@ -159,8 +164,8 @@ Browse **[all releases](https://github.com/spoonhasi/deemesh/releases)**, or jum
 
 | Product | Latest release | Contents |
 |---|---|---|
-| **deemesh-sdk** | **[⬇ deemesh-sdk v1.4.1](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-sdk-v1.4.1)** | Windows (32/64) · Linux (64) native libraries + C header + docs (KO/EN) |
-| **deemesh-hub** | **[⬇ deemesh-hub v1.4.1](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-hub-v1.4.1)** | Standalone HTTP server: `win` · `linux-x64`. Each archive is self-contained (no separate SDK needed) |
+| **deemesh-sdk** | **[⬇ deemesh-sdk v1.5.0](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-sdk-v1.5.0)** | Windows (32/64) · Linux (64) native libraries + C header + docs (KO/EN) |
+| **deemesh-hub** | **[⬇ deemesh-hub v1.5.0](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-hub-v1.5.0)** | Standalone HTTP server: `win` · `linux-x64`. Each archive is self-contained (no separate SDK needed) |
 
 Each archive contains a `README`, documentation, `LICENSE` and `THIRD-PARTY-NOTICES`. The Windows hub archive carries both bitnesses: run `deemesh-hub-x64.exe` and keep the two files together; bitness (yours, and your Fanuc DLL's) is the hub's problem, not yours. The SDK and the hub are versioned independently; take the latest of each.
 
