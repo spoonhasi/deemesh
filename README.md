@@ -128,9 +128,12 @@ POST /machine/channel/variable/variableValue?channel=1&variable=100      ← wri
 > **Each control has prerequisites of its own. Check them before you download.**
 >
 > - **Fanuc** needs Fanuc's own FOCAS2 library: `fwlib32.dll` / `fwlib64.dll` on Windows,
->   `libfocas64.so` on Linux. It is covered by Fanuc's license and is **not bundled with
+>   the 64-bit library on Linux (the release we checked is `libfocas32.so.1.0.0`); some packages name the Windows
+>   library `FOCAS32.dll` / `FOCAS64.dll`, and the functions it includes vary by package, so with a library that
+>   has no write functions, parameter, macro variable, PMC, offset and tool data writes answer status `-20`.
+>   It is covered by Fanuc's license and is **not bundled with
 >   deemesh**, so obtain it from Fanuc and point `library_path` at it. The hub takes
->   **either bitness**: it reads the DLL and hosts it in a matching process by itself.
+>   **either bitness on Windows**: it reads the DLL and hosts it in a matching process by itself.
 > - **Siemens** needs the **OPC-UA server option licensed and enabled** on the machine
 >   (a separately purchased Siemens option). A machine without it refuses the
 >   connection outright. Support has been tested on **SINUMERIK
@@ -164,8 +167,8 @@ Browse **[all releases](https://github.com/spoonhasi/deemesh/releases)**, or jum
 
 | Product | Latest release | Contents |
 |---|---|---|
-| **deemesh-sdk** | **[⬇ deemesh-sdk v1.5.0](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-sdk-v1.5.0)** | Windows (32/64) · Linux (64) native libraries + C header + docs (KO/EN) |
-| **deemesh-hub** | **[⬇ deemesh-hub v1.5.0](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-hub-v1.5.0)** | Standalone HTTP server: `win` · `linux-x64`. Each archive is self-contained (no separate SDK needed) |
+| **deemesh-sdk** | **[⬇ deemesh-sdk v1.6.0](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-sdk-v1.6.0)** | Windows (32/64) · Linux (64) native libraries + C header + docs (KO/EN) |
+| **deemesh-hub** | **[⬇ deemesh-hub v1.6.0](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-hub-v1.6.0)** | Standalone HTTP server: `win` · `linux-x64`. Each archive is self-contained (no separate SDK needed) |
 
 Each archive contains a `README`, documentation, `LICENSE` and `THIRD-PARTY-NOTICES`. The Windows hub archive carries both bitnesses: run `deemesh-hub-x64.exe` and keep the two files together; bitness (yours, and your Fanuc DLL's) is the hub's problem, not yours. The SDK and the hub are versioned independently; take the latest of each.
 
