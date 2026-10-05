@@ -1089,7 +1089,7 @@ write: []
 
 The channel's spindle count. Cached at connection time. The valid range of the `spindle` filter is `1` to this value.
 
-**On Fanuc and Siemens it differs per path.** A path with no spindle reads `0`, and the spindle addresses on that channel then answer with status `-20` on Fanuc (including `spindleOverride` and `spindleSpeedCommanded`, which are channel-wide values there) and status `-18` on Siemens (Siemens reads those two per spindle as well).
+**On Fanuc and Siemens it differs per path.** A path with no spindle reads `0`, and the spindle addresses on that channel then answer with status `-18` (on Fanuc this includes `spindleOverride` and `spindleSpeedCommanded`, which are channel-wide values there; Siemens reads those two per spindle as well).
 
 **On Mitsubishi it is the spindle count of the whole NC** (parameter `#1039 spinno`, a base common parameter), so every channel reports the same value. deemesh reads it from parameter `#1039` for each channel, and spindles appear to be numbered NC-wide, so `spindle=1` up to this value addresses every spindle from any channel. Confirmed on a simulator with two spindles and two part systems: both part systems accept `spindle=1` and `2` (`3` answers status `-18`), and the commanded speed of each spindle reads the same from both part systems. We have not confirmed this on a machine tool.
 
