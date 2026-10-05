@@ -3,13 +3,13 @@
 value_type: "string"
 null_able: false
 required_filters: []
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
-The **protocol identifier** this connection uses: one of `"nc_focas2_fanuc"`, `"nc_opcua_siemens"`, `"nc_ezsocket_mitsubishi"`. No filters. Returns `string`, read-only. It is fixed at connection time, so once connected it answers immediately with no NC communication (while disconnected it returns status `-10` like any other address; the connection check comes first).
+The **protocol identifier** this connection uses: one of `"nc_focas2_fanuc"`, `"nc_opcua_siemens"`, `"nc_ezsocket_mitsubishi"`, `"nc_dnc_heidenhain"`. No filters. Returns `string`, read-only. It is fixed at connection time, so once connected it answers immediately with no NC communication (while disconnected it returns status `-10` like any other address; the connection check comes first).
 
-Like `configuredMachineName`, this is a **value from the configuration**, not something the machine reports. It returns the `protocol` field of `deemesh_create` (or of the machine entry in `config.json`) as-is, which is why the address says `configured`.
+Like `configuredMachineName`, this is a **value from the configuration**, not something the machine reports. It returns the `protocol` field of `deemesh_create` (or of the machine entry in the hub's `machines.json`) as-is, which is why the address says `configured`.
 
 **Its purpose is narrow.** Most addresses are designed to hide the machine type, so no branching is needed. This value is for the **few places where the value space belongs to the machine type**: PLC address syntax (`D100` vs `DB10.DBB56`), diagnosis numbering, tool type codes, and the like, which the catalog explicitly marks as machine-dependent.
 
@@ -20,18 +20,18 @@ Like `configuredMachineName`, this is a **value from the configuration**, not so
 value_type: "string"
 null_able: false
 required_filters: []
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
-Returns the `machine_name` from `config.json` (hub) or the `deemesh_create` configuration as-is. It is a **value from the configuration**, not a name the machine reports; hence `configured` in the address. Use it to confirm a connection reached the intended machine, or to label a response.
+Returns the `machine_name` from the hub's `machines.json` or the `deemesh_create` configuration as-is. It is a **value from the configuration**, not a name the machine reports; hence `configured` in the address. Use it to confirm a connection reached the intended machine, or to label a response.
 
 ## /machine/cncModel
 ```yaml
 value_type: "string"
 null_able: false
 required_filters: []
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
@@ -40,44 +40,49 @@ The CNC model string.
 - **Fanuc**: series number string: `"15"`, `"16"`, `"18"`, `"21"`, `"30"`, `"31"`, `"32"`, `"35"`, `"0"` (0i), `"PD"`/`"PH"` (Power Mate i), `"PM"` (Power Motion i). `desc` also carries the series name (e.g. `"31"` → `Series 31i`). **Where the control reports its model generation, that letter is appended to `desc`** (e.g. `Series 31i-B`, `Series 0i-F`). Controls without generation information get no letter (0i-A/B/C, 30i-A and earlier series). `value` is the same either way. `desc` is a display string whose wording may change, so do not branch on it for the generation
 - **Siemens**: the model name as-is (e.g. `"840D sl"`). When the control's NCK type could not be read at connection, or is a type deemesh does not know, the value is `"UNKNOWN"`
 - **Mitsubishi**: the NC system S/W number and name string (vendor `GetVersion`). A control without it answers with status `-20`; that is the case on simulators, which carry no real hardware identity. No `desc`
+- **Heidenhain**: the model name the control reports for itself, spelled as given (e.g. `"TNC7"`; the NC software entry of the software list HEIDENHAIN DNC provides). It is read from the control, not taken from the connection's `system_type`, once at connection. `desc` carries the NC software number (e.g. `NC software 817625 17 SP4` on the programming station of our test environment). It is the same information as Control model and NC-SW under General information in the control's settings (the TNC7 User's Manual, 'Software', lists `817625` as the programming station's number). When that entry is not found the answer is status `-20`
 
 ## /machine/machineType
 ```yaml
 value_type: "string"
 null_able: false
 required_filters: []
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
+codes: [{"value": "machiningCenter", "name": "Machining center"}, {"value": "lathe", "name": "Lathe", "read": ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]}, {"value": "punchPress", "name": "Punch press", "read": ["nc_focas2_fanuc"]}, {"value": "laser", "name": "Laser", "read": ["nc_focas2_fanuc"]}, {"value": "wireCut", "name": "Wire cut", "read": ["nc_focas2_fanuc"]}, {"value": "unknown", "name": "Unknown"}]
 ```
 
-The machine type. Returns a `string`, a self-describing enum, so no separate code table is needed. The full set of possible values:
+The machine type. Returns a `string` whose value describes itself. The full set of possible values:
 
-- `"machiningCenter"`: machining center (Fanuc M/MM, Siemens M, Mitsubishi `…M` series)
+- `"machiningCenter"`: machining center (Fanuc M/MM, Siemens M, Mitsubishi `…M` series, Heidenhain TNC7, TNC 640 and TNC 620)
 - `"lathe"`: lathe (Fanuc T/TT/MT, Siemens T, Mitsubishi `…L` series)
 - `"punchPress"`: punch press (Fanuc only)
 - `"laser"`: laser (Fanuc only)
 - `"wireCut"`: wire cut (Fanuc only)
-- `"unknown"`: could not be determined; it can occur on all three controls whenever the machine type does not map to one of the values above (on Mitsubishi, a configuration whose `system_type` token carries no `…M` or `…L`, so we cannot tell which it is)
+- `"unknown"`: could not be determined; it can occur on every control whenever the machine type does not map to one of the values above (on Mitsubishi, a configuration whose `system_type` token carries no `…M` or `…L`, so we cannot tell which it is; on Heidenhain, see the paragraph below)
 
 **This address describes the machine as a whole.** On a Fanuc mill-turn, where paths differ, it reports the name the control gives the whole machine (the control has a fixed name for each kind of machine: a milling series with two paths is `MM`, so `"machiningCenter"`, while a turning series with two or three paths is `TT` and a turning series with compound machining is `MT`, both `"lathe"`). Behaviour that differs per path, such as the G modal tables and the tool offset columns, is handled by deemesh with **that path's own type** and therefore moves independently of this value.
 
 On Mitsubishi this value comes from the configured `system_type`. That is not the same as trusting the configuration: the vendor defines `…M` as a machining center system and `…L` as a lathe system, and **validates that distinction at connect time**: pointing a `…L` type at a mill is refused outright. So a successful connection is the control confirming this value.
+
+On Heidenhain this value is decided from **the model name the control reports** (the value of `cncModel`). It does not use the configured `system_type`, because the TNC7 in our test environment also accepted connections with other `system_type` values, so the setting alone does not identify the machine. TNC7, TNC 640 and TNC 620 are `"machiningCenter"` because Heidenhain's documentation (document ID 1080370-04, §1.1) classifies them as milling controls. For TNC 320 and TNC 128 we have not confirmed that classification in Heidenhain's documentation, so the answer is `"unknown"`, as it is for any other model we have not tested; use `cncModel` to see which control it is. A control whose `cncModel` answers with status `-20` (where deemesh did not find the model entry in the control's software list) is also `"unknown"`.
 
 ## /machine/currentDateTime
 ```yaml
 value_type: "string"
 null_able: false
 required_filters: []
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
 The machine's **current date/time**. Returns a `string`, ISO 8601 to the second (`"2026-07-11T14:30:00"`).
 
-- **Machine-local clock**: since there is no timezone information, no TZ suffix (`Z`/`+09:00`) is appended. It is the ISO 8601 local-time form, and an RFC 3339 parser, which requires an offset, may reject it
+- **Machine-local clock** (Fanuc, Siemens, Mitsubishi, Heidenhain): since there is no timezone information, no TZ suffix (`Z`/`+09:00`) is appended. It is the ISO 8601 local-time form, and an RFC 3339 parser, which requires an offset, may reject it
 - **Do not hand it straight to JavaScript's `new Date()`**: a date-and-time without an offset is interpreted in **the viewer's** time zone. This value is the **machine's** wall clock, not the viewer's
 - This is the **CNC's clock**, not the server PC's clock; if the machine's clock is off, it is reflected as-is
-- Fanuc: `cnc_gettimer` / Siemens: `sysTimeBCD` / Mitsubishi: `GetClockData`
+- Fanuc: `cnc_gettimer` / Siemens: `sysTimeBCD` / Mitsubishi: `GetClockData` / Heidenhain: the basic PLC program's date and time symbols
+- **Heidenhain reads the basic PLC program's date and time symbols.** It is the time set on the control, so no `Z` is appended (in our test environment the value followed when the control's time zone was changed; the time zone and time are set under Operating system, Date/Time in the control's settings, see the TNC7 User's Manual, 'Adjust system time window'). It is PLC data, so the connection needs `access_password`; when it is missing or the control rejects it, the status is `-20` and `error` says which. This status `-20` is not a link problem (when the link is down, the answer is status `-10`, `-14` or `-17`). If deemesh finds none of the date and time symbol names it knows on the machine, the status is also `-20` (symbol names can differ between machines' PLC programs; if you know the names used on that machine, read them with `/machine/plcAddress/plcText`)
 - **Recommended health-check address**: a cheap read that triggers an actual NC round-trip on all protocols, so use it for polling and then judging `status` (`0` = normal, status `-10`, status `-14` and status `-17` (connection failed) = link problem) to monitor per-machine communication state. (Cache-served addresses like `machineType` may succeed even when the link is dead, making them unsuitable)
 
 Time-related addresses are always ISO 8601 strings (`…At` = event moment, `…DateTime` = clock reading).
@@ -87,7 +92,7 @@ Time-related addresses are always ISO 8601 strings (`…At` = event moment, `…
 value_type: "int"
 null_able: false
 required_filters: []
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
@@ -97,6 +102,7 @@ The machine's **cumulative power-on time**, an accumulating total that keeps cou
   60. Differential calculations (e.g. utilization) carry an inherent ±60 s error
 - **Siemens**: `setupTime`. On an 840D sl bench it came in whole minutes, so the value was a multiple of 60 (deemesh multiplies the minutes by 60 to get seconds and does not round to whole minutes). A normal power cycle does not reset it, but **powering the control up with default values sets it to `0`** (a rare service operation)
 - **Mitsubishi**: `GetAliveTime` (**second resolution**). It is the `Power ON` item of the control's integrated-time screen (accumulated from NC power on to off), and **the control stops accumulating at `59999:59:59` and holds that value** (M800 Instruction Manual). The EZSocket manual documents the value as an 8-digit `HHHHMMSS` (up to `9999:59:59`), so we have not confirmed what the API returns beyond 9999 hours (about 416 days). Once the cap is reached every difference reads `0`
+- **Heidenhain**: `GetNcUpTime`. The reference describes it as the accumulated time the control has been on and states that this counter cannot be reset. It has **minute resolution**, so the value is always a multiple of 60. It was the same counter as "Control on" under Machine times in the control's machine settings (`2114880` while that showed 587:28:21 in our test environment)
 
 Elapsed-time addresses are always **seconds-normalized int** (the `…Duration` suffix rule). **Anything below a second is discarded** - `59.9` seconds reads as `59`. That is how the control's own elapsed-time display works, and it never counts a second that has not passed yet. Every machine type and every `…Duration` address behaves the same way.
 
@@ -105,20 +111,22 @@ Elapsed-time addresses are always **seconds-normalized int** (the `…Duration` 
 value_type: "int"
 null_able: false
 required_filters: []
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
 The number of channels (paths) on the CNC. Returns `int`, read-only. Cached at connection time, so it returns immediately with no additional communication. The valid range of the `channel` filter is `1` to this value.
 
-Sources: the maximum path count from `cnc_getpath` on Fanuc and `/Nck/Configuration/numChannels` on Siemens; on Mitsubishi it is counted at connection time by opening part systems `1` to `8` in turn. On Siemens, if that node could not be read at connection, deemesh does not make up a value and answers status `-17`.
+Sources: the maximum path count from `cnc_getpath` on Fanuc and `/Nck/Configuration/numChannels` on Siemens; on Mitsubishi it is counted at connection time by opening part systems `1` to `8` in turn, and on Heidenhain it is the number of channels in the list `GetChannelInfo` returns at connection. On Siemens and Heidenhain, if that value could not be read at connection, deemesh does not make up a value and answers status `-17`.
+
+The HEIDENHAIN DNC reference states that the channel list from `GetChannelInfo` holds a single element, so on Heidenhain the value is `1`.
 
 ## /machine/channel/toolAreaNumber
 ```yaml
 value_type: "int"
 null_able: false
 required_filters: ["channel"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
@@ -130,38 +138,42 @@ On Siemens it is the NCK setting (`toNo`), so several channels may get the **sam
 
 Fanuc and Mitsubishi have no separate tool-area layer; their tool data belongs to the **path (part system)**. The channel number therefore comes back unchanged. The `/machine/toolArea/…` addresses of these two machine types take no `channel` filter, so `toolArea` is what selects the path. The exception is **the Mitsubishi magazines, which belong to the whole machine**: the magazine addresses (`magazineCount`, `magazineList`, `magazine/…`) answer the same magazines for any `toolArea` value from `1` to the channel count.
 
+**Heidenhain** has a single tool management (one set of tool numbers), so this is always `1`. The tool addresses accept only `1` for `toolArea`; any other value is status `-18`.
+
 ## /machine/channel/executionStatus
 ```yaml
 value_type: "int"
 null_able: false
 required_filters: ["channel"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
+codes: [{"value": 0, "name": "Reset"}, {"value": 1, "name": "Stop"}, {"value": 2, "name": "Hold"}, {"value": 3, "name": "Run"}, {"value": 4, "name": "MSTR (retraction/recovery/JOG MDI)", "read": ["nc_focas2_fanuc"]}, {"value": 5, "name": "Interrupted", "read": ["nc_opcua_siemens"]}, {"value": 99, "name": "Unknown", "read": ["nc_focas2_fanuc"]}]
 ```
 
 The program **execution status** code (with `desc`). The "is it running now" counterpart to `operateMode` (which mode it is in):
 
 - `0` = Reset · `1` = Stop · `2` = Hold · `3` = Run (running)
-- `4` = MSTR (Fanuc: retraction/recovery) · `5` = Interrupted (Siemens: see below) · `99` = Unknown (Fanuc only; Siemens surfaces unlisted values as a status `-17` error)
+- `4` = MSTR (Fanuc: retraction/recovery) · `5` = Interrupted (Siemens: see below) · `99` = Unknown (Fanuc only; Siemens and Heidenhain surface unlisted values as a status `-17` error)
 
 `1` and `2` are different **kinds** of pause (who halted it, and where):
 
-- `Stop` = halted **by the program at a planned point**. A block finished in single-block mode (confirmed on all three machine types), or it hit M0/M1, always standing at a block boundary.
+- `Stop` = halted **by the program at a planned point**. A block finished in single-block mode (confirmed on all four machine types), or it hit M0/M1, always standing at a block boundary.
   - ⚠️ **On Fanuc, M0/M1 may not read as `Stop`.** The control sends the M code and then waits for the PLC to acknowledge it, and it treats that wait as a cycle still in progress, so the value stays **`3` (Run)**. On our 31i bench (with a PLC that does not act on M0) the program stood at the `M00` block with the control's cycle-start lamp blinking, this address read `3` the whole time, and a second cycle start resumed it. A machine whose PLC does act on M0 can read differently: on one 31i-B machine tool this address read `2` (Hold) while the program stood at `M00`. The machine's ladder decides which value appears, so if you need to recognize an M0/M1 stop, check it once on that machine. Siemens reads `1` (Stop) in the same situation.
 - `Hold` = halted **by the operator at an arbitrary moment**. The stop key (feed hold) on the panel was pressed; it can stop mid-block.
 
 ⚠️ **The button name and the state name disagree** (an industry convention): pressing the panel's **Stop button puts the machine in `Hold`**. The `Stop` state is produced by the program (M0/M1, single block), not by a button. Either way, Cycle Start resumes.
 
-**What you get while an alarm is up differs by machine type.** The same situation - automatic operation halted by a call to a subprogram that does not exist - measured in the test environments of two machine types:
+**What you get while an alarm is up differs by machine type.** The same situation - automatic operation halted by a call to a subprogram that does not exist - measured in the test environments of three machine types:
 
 | | `executionStatus` | `alarmStatus` |
 |---|---|---|
 | Fanuc | `1` (Stop) | `2` |
 | Mitsubishi | `3` (Run), until reset | `2` |
+| Heidenhain | `0` (Reset), briefly `2` first | `2` |
 
 Each control expresses its own automatic-operation state differently. deemesh does not override this: whether an alarm halts machining depends on the alarm (informational ones do not), and we have no per-alarm knowledge of that, so demoting the value would be wrong in the cases that are fine.
 
-**What an emergency stop gives also differs by machine type.** On Fanuc, stopping automatic operation with the emergency stop read `0` (Reset) in our test environment (NC Guide) and on a 31i bench, and Mitsubishi read `0` (Reset) in its test environment too; on Siemens it is `5` (Interrupted). **To detect the emergency stop itself use `/machine/channel/emergencyStatus`, not this address** - that one absorbs the difference between machine types.
+**What an emergency stop gives also differs by machine type.** On Fanuc, stopping automatic operation with the emergency stop read `0` (Reset) in our test environment (NC Guide) and on a 31i bench, and Mitsubishi read `0` (Reset) in its test environment too; on Siemens it is `5` (Interrupted). On Heidenhain, an emergency stop raised during a run by writing `emergencyStatus` read `0` (Reset), briefly passing through `2`, in our test environment. **To detect the emergency stop itself use `/machine/channel/emergencyStatus`, not this address** - that one absorbs the difference between machine types.
 
 **So do not read `3` (Run) as "it is cutting right now".** The value means automatic operation has not ended, not that an axis is moving. Two situations that read `3` while the machine stands still are confirmed: **an alarm is up** (`alarmStatus` is `2`) and **the control is waiting for an M code to be acknowledged** (no alarm; Mitsubishi raises stop code `T10` then, so `alarmStatus` reads `1`). If you need to know whether it is really halted, watch whether `/machine/channel/programCurrentBlock` stops changing, or read `alarmStatus` alongside.
 
@@ -169,13 +181,16 @@ Each control expresses its own automatic-operation state differently. deemesh do
 
 `5` (Siemens only) means **the machine stopped because something is wrong**. Two causes are confirmed on our 840D sl bench: an **emergency stop** and an **alarm stop**. Normal stops (M0, single block, an operator stop) all resolve to `1`/`2`, so when you see `5`, tell the two apart with `/machine/channel/alarmStatus` and `/machine/channel/emergencyStatus`. The control reports stop reasons in finer detail than this, and every stop outside the reasons deemesh has confirmed (M0, single block, an operator stop) lands here. So `5` is a stop of unspecified kind, and its `desc` is `Interrupted`. The fact that it is paused is certain, so a caller that does not care about the kind may treat `1`/`2`/`5` together as "paused".
 
+**On Heidenhain** it carries the part-program status (`GetProgramStatus`). Values seen in our test environment (the TNC7 programming station): `3` while running; `2` when the operator pressed NC stop during a move (the axis stops mid-block); `1` at `M0` and after one block in single block (on a block boundary); `0` at the end of the program (also when it ends with `M30`). **A program stopped by an error reads `2`, and what follows depends on the class the control gives the error** (the error stays in `alarmList`). An error of a class that aborts the program passes through `2` briefly (under 0.3 seconds in our test environment) and then reads `0`: so did a collision-monitoring error, an error raised by the program (`FN 14`) and a call to a subprogram that does not exist. An error of a class that only holds the program stays at `2`: in our test environment, running a feed block without the spindle turning read `2` until the error was cleared, and after that the same `2` as when the operator presses NC stop. The TNC keeps a program per operating mode, so outside program run (manual, MDI) the status refers to that mode's program and usually reads `0`. It read `0` even while a block ran in MDI (in our test environment the program status from HEIDENHAIN DNC stayed 'no program selected' meanwhile, and we have not found another way to read MDI execution). The panel's words and this address's names are the other way round: the TNC7 User's Manual calls stopping on a block boundary by `M0` or single block "interrupting" and stopping with the NC stop key "stopping", while this address follows the situation, so the former is `1` (Stop) and the latter `2` (Hold).
+
 ## /machine/channel/operateMode
 ```yaml
 value_type: "int"
 null_able: false
 required_filters: ["channel"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
-write: []
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
+write: ["nc_dnc_heidenhain"]
+codes: [{"value": 0, "name": "Jog"}, {"value": 1, "name": "MDI"}, {"value": 2, "name": "Memory (Auto)"}, {"value": 5, "name": "No mode", "read": ["nc_focas2_fanuc", "nc_ezsocket_mitsubishi"]}, {"value": 6, "name": "Edit", "read": ["nc_focas2_fanuc"]}, {"value": 7, "name": "Handle", "read": ["nc_focas2_fanuc", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]}, {"value": 8, "name": "Teach in Jog", "read": ["nc_focas2_fanuc"]}, {"value": 9, "name": "Teach in Handle", "read": ["nc_focas2_fanuc"]}, {"value": 10, "name": "INC feed", "read": ["nc_focas2_fanuc", "nc_ezsocket_mitsubishi"]}, {"value": 11, "name": "Reference"}, {"value": 12, "name": "Remote", "read": ["nc_focas2_fanuc", "nc_ezsocket_mitsubishi"]}, {"value": 13, "name": "Jog-REPOS", "read": ["nc_opcua_siemens"]}, {"value": 14, "name": "MDI-Reference", "read": ["nc_opcua_siemens"]}, {"value": 15, "name": "MDI-Teach in", "read": ["nc_opcua_siemens"]}, {"value": 16, "name": "MDI-Teach in-Reference", "read": ["nc_opcua_siemens"]}, {"value": 17, "name": "Auto-Teach in-Reference", "read": ["nc_opcua_siemens"]}, {"value": 18, "name": "MDI-REPOS", "read": ["nc_opcua_siemens"]}, {"value": 19, "name": "MDI-Teach in-REPOS", "read": ["nc_opcua_siemens"]}, {"value": 20, "name": "Auto-Teach in", "read": ["nc_opcua_siemens"]}, {"value": 99, "name": "Unknown", "read": ["nc_focas2_fanuc", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]}]
 ```
 
 The current operating mode code (with `desc`). A unified code regardless of machine:
@@ -191,24 +206,35 @@ On Mitsubishi, **RAPID** (manual rapid traverse) comes out as `0` (Jog); it is m
 
 `5` (no mode) comes from **Fanuc and Mitsubishi**: the state where no basic mode is selected. The operator panel shows `****` in the mode field on Fanuc and "no mode" on Mitsubishi. On Mitsubishi it is common on a multi-part-system machine, where **each part system has its own mode**: while you work in one, the other reads this, and that part system's `alarmList` carries `M01 0101` (operation mode not selected) alongside it. It differs from `99` (Unknown): here the machine positively reported "no mode", whereas `99` means we could not interpret the value it gave. Siemens has no equivalent state. On Siemens, a mode combination deemesh cannot interpret answers status `-17` rather than `99`.
 
+**On Heidenhain** it carries the control's execution mode (`GetExecutionMode`). In our test environment (the TNC7 programming station) manual operation read `0`, MDI `1` and program run `2`; turning on Single block in program run still reads `2` (whether single block is on is what `/machine/channel/singleBlockOn` tells). The TNC7 User's Manual ('Overview of operating modes') also calls the editor (Editor), the files (Files) and the tables (Tables) operating modes, but the execution mode HEIDENHAIN DNC reports covers the side that moves the machine (manual, MDI, program run and so on), so while one of those screens is open the last value is still reported; `6` (Edit) therefore does not appear. The Setup application inside the manual operating mode also reads `0`. Handwheel (`7`) appeared when the handwheel was switched on with its activation key in manual operation, and switching it off again read `0` (with the virtual handwheel of our test environment). Switching the handwheel on in program run keeps `2`, and in MDI keeps `1`. Reference (`11`) appeared in our test environment when the mode was switched through DNC; entering it from the control's own panel has not been confirmed (according to the manual, a machine with incremental encoders stays in reference mode after power-on until all axes are referenced; our test environment always had its reference established). These values were seen on a TNC7, and the manual ('Operating elements of the keyboard unit') notes that the TNC7 arranges its operating modes differently from the TNC 640 (some keys switch a function on instead of changing the mode). Whether a TNC 640 gives the same values has not been confirmed. A value the reference classes as an execution other than the known ones reads `99`.
+
+**Writing is supported on Heidenhain only** (`SetExecutionMode`; the other controls answer status `-20` (not supported)). The accepted values are `0` (manual operation), `1` (MDI) and `2` (program run); any other code is status `-16` (invalid write value). Handwheel (`7`) and reference (`11`) are not accepted because in our test environment switching to handwheel mode set the overrides to the virtual handwheel's values (feed and rapid `0`%, spindle `50`%), which stayed after leaving the mode (the TNC7 User's Manual says that switching the handwheel on hands the feed rate over to the handwheel's own potentiometer), and the reference mode could not go straight back to program run. **If the control is already in that mode, nothing is sent and the answer is status `0`.** Program run with single block on also reads `2`, so writing `2` again leaves single block as it is (single block is written through `/machine/channel/singleBlockOn`). When the control does not switch now the answer is status `-22` (machine state); in our test environment that was the case when switching to manual operation while a program was running. The operator panel screen switched to the mode at once. **Write caution**: this changes the mode the operator at the panel is working in.
+
 ## /machine/channel/emergencyStatus
 ```yaml
 value_type: "int"
 null_able: false
 required_filters: ["channel"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
-write: []
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
+write: ["nc_dnc_heidenhain"]
+codes: [{"value": 0, "name": "Not emergency"}, {"value": 1, "name": "Emergency"}, {"value": 2, "name": "Reset", "read": ["nc_focas2_fanuc"]}]
 ```
 
 The emergency-stop status (with `desc`): `0` = normal, `1` = emergency stop. On Fanuc a transient `2` (Reset) flashes by: on a 31i bench it lasted about 1.4 s and 2.3 s in two measurements when the emergency stop was released, and under a second when RESET was pressed; treating anything non-`0` as "not normal" is the safe reading.
 
-**Use this address to detect an emergency stop.** Which channel an emergency stop surfaces on differs by machine type, so looking for it in the alarm list yourself gives different answers on different controls. This address absorbs that difference and answers with the same meaning on all three.
+**Use this address to detect an emergency stop.** Which channel an emergency stop surfaces on differs by machine type, so looking for it in the alarm list yourself gives different answers on different controls. This address absorbs that difference and answers with the same meaning whatever the control.
 
 On Mitsubishi it is `1` whenever the alarm list carries an `EMG` class; it is caught **regardless of the cause** of the emergency stop.
 
 **Siemens 840D sl is decided by a single signal the NC sets on the PLC interface, emergency stop active (`DB10.DBX106.1`).** In the emergency-stop sequence of the function manual, the NC sets this signal and raises the emergency-stop alarm `3000` in consecutive steps and clears both together, so this one read carries the same meaning as the two-step method below. Both come on when the machine builder's PLC program passes the emergency-stop button to the NC. Reading this signal needs read access to the PLC `DB10` for the account used to connect (`SinuReadAll` includes it); without it the signal cannot be read and the address answers with status `-17`. **After the emergency stop is released it stays `1` until a RESET acknowledges it** (840D sl bench: the signal and alarm `3000` stayed until RESET); Fanuc goes to `0` on release, passing briefly through `2` (31i bench).
 
 **Other Siemens controls (828D and others) decide in two steps.** While the mode-group-ready signal (`readyActive`, PLC interface DB11 DBX6.3) is on the value is `0` with no extra communication; only when it is off does deemesh fetch the alarm snapshot and answer **`1` if the emergency-stop alarm `3000` is present, `0` otherwise**. The ready signal alone would not do: every alarm whose reaction includes "mode group not ready" (drive, encoder and referencing faults among others) clears it, which would make the value broader than the Fanuc emergency-stop signal or the Mitsubishi `EMG` class (Basic Functions manual, A2). In those cases the value is `0` and the cause is told by `alarmStatus` (`2`) and `/machine/channel/alarmList`. After the emergency stop is released, `3000` stays until it is acknowledged and reset, so `1` lasts that much longer (the 840D sl signal behaves the same); if the alarm snapshot cannot be fetched while the mode group is not ready (on 840D sl, if the signal cannot be read), the address answers with status `-17` rather than guessing. The alarm snapshot this reads is the one `alarmList` reads, so right after the control starts the wait for late alarms described under `alarmList` applies here too.
+
+**On Heidenhain it reads the PLC API's CNC emergency-stop symbol.** In the PLC API definition Heidenhain places on the control, this symbol means the CNC is in emergency stop. It is PLC data, so the connection needs `access_password`; when it is missing or the control rejects it, the status is `-20`. If deemesh finds none of the symbol names it knows for this value on the machine, the status is also `-20`. Symbol names can differ between machines' PLC programs; if you know the name that holds this value on that machine, read it with `/machine/plcAddress/plcType/plcValue`. In our test environment (the TNC7 programming station) we could not trigger an emergency stop from a panel button; `1` was confirmed with an emergency stop raised by the write below.
+
+**On Heidenhain it can also be written (raising and removing an emergency stop).** Writing `1` makes deemesh raise an error of the emergency-stop class on the control through HEIDENHAIN DNC, which puts the control into emergency stop. The message line on the operator panel shows "Emergency stop requested through deemesh", and a running program is aborted. ⚠️ **On a machine tool this stops the machine at once, even in the middle of a cut.** If the control is already in emergency stop, whatever the cause, nothing is sent and the status is `0`. In our test environment this address became `1` within a second of the write, and a running `executionStatus` went from `3` to `0`, briefly passing through `2`.
+
+Writing `0` **removes only the emergency stop that this connection raised with `1`.** This address returns to `0` within a second and the aborted program does not start again (confirmed in our test environment). If another cause, such as the emergency-stop button on the panel, is active as well, the emergency stop stays. With nothing raised by this connection and the control in emergency stop, the status is `-22`: release it at the machine. **An emergency stop that deemesh raised stays on the control when the connection drops or deemesh restarts.** It can then no longer be removed with `0` (status `-22`); clear its message with CE in the control's message window (confirmed in our test environment). Clearing it with CE at the panel first is fine too. Because the write looks at the current state, it also needs `access_password`. The HEIDENHAIN DNC reference lists this function from DNC 1.7.1 on the TNC7 and from DNC 1.6.1 on the TNC 640.
 
 ## /machine/channel/motionStatus
 ```yaml
@@ -217,6 +243,7 @@ null_able: false
 required_filters: ["channel"]
 read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
 write: []
+codes: [{"value": 0, "name": "None (Idle)", "read": ["nc_focas2_fanuc"]}, {"value": 1, "name": "Motion", "read": ["nc_focas2_fanuc"]}, {"value": 2, "name": "Dwell"}, {"value": 3, "name": "Wait (Multi-path Synchronization)", "read": ["nc_focas2_fanuc"]}, {"value": 4, "name": "Not dwelling", "read": ["nc_opcua_siemens", "nc_ezsocket_mitsubishi"]}]
 ```
 
 The axis motion status code (with `desc`):
@@ -235,8 +262,9 @@ If you need to know whether an axis is actually moving and the control reports `
 value_type: "int"
 null_able: false
 required_filters: ["channel"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
+codes: [{"value": 0, "name": "No alarm"}, {"value": 1, "name": "Warning"}, {"value": 2, "name": "Alarm"}]
 ```
 
 The **alarm severity**. Regardless of machine it returns **only the three values `0` / `1` / `2`**, and what is actually wrong on that machine comes alongside in `desc`.
@@ -276,12 +304,14 @@ The **alarm severity**. Regardless of machine it returns **only the three values
 - **Siemens also sees the machine builder's PLC alarms** (hydraulics, lubrication, door interlocks and the like). It used to read a node covering NCK alarms only, so such an alarm could be active while this address reported `0` (normal).
 - **On Siemens, alarms can arrive late right after the control starts** (the same snapshot as `alarmList`). When the first read after the alarm subscription is created (a new connection or a reconnection) finds no alarm, deemesh waits up to 1 second for alarms arriving late before it answers (only within what is left of the request's `timeout`), so that read takes that much longer, and an alarm arriving later than that shows in the next read. On the 840D sl, use `emergencyStatus` to detect an emergency stop right after the control starts (there it reads a PLC signal). On other Siemens controls such as the 828D, `emergencyStatus` reads the same alarm snapshot.
 
+**On Heidenhain** it follows the grade the control gives each `GetErrorList` entry: `2` if any entry has the Error grade, `1` if there are only Warning, Info or Note entries, with the grade name in `desc`. This follows the split in the TNC7 User's Manual ('Message menu on the information bar'): an error must be cleared before work can continue (some need a restart), while a warning, info or note lets work continue without clearing it. An entry with a number or text but no grade, or a grade deemesh does not know, is treated as an error to be safe, so `2`. Two things to know. First, in our test environment (the TNC7 programming station) the control recorded an Info entry (`130-07e2`) every time an unsecured DNC connection was made, so once deemesh had connected this address did not return to `0` until that entry was cleared in the panel's message menu (an info entry can be cleared at any time), and `alarmCount` grew by one with each new connection. A secure connection (`RPC secure`, `connection_name`) did not leave this entry. Second, in the same test environment `M0` raised the PLC message `PLC00050` with the Error grade, so the value was `2` (it cleared on resuming). Which message a machine raises, and with which grade, is decided by that machine's PLC program. An empty entry with no grade, number or text is not counted (see `alarmList`).
+
 ## /machine/channel/alarmCount
 ```yaml
 value_type: "int"
 null_able: false
 required_filters: ["channel"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
@@ -292,13 +322,16 @@ The **number** of active alarms/messages (= the count of `alarmList` items, rega
 - **Cost note (Mitsubishi)**: same as Fanuc; the list is fetched and counted, so it costs the same as `alarmList`
 - **On Siemens, alarms can arrive late right after the control starts** (the same snapshot as `alarmList`). When the first read after the alarm subscription is created (a new connection or a reconnection) finds no alarm, deemesh waits up to 1 second for alarms arriving late before it answers (only within what is left of the request's `timeout`), so that read takes that much longer, and an alarm arriving later than that is counted in the next read. On the 840D sl, use `emergencyStatus` to detect an emergency stop right after the control starts (there it reads a PLC signal). On other Siemens controls such as the 828D, `emergencyStatus` reads the same alarm snapshot
 
+- **Cost note (Heidenhain)**: counts the same list as `alarmList` (`GetErrorList`), so it costs the same. Info-grade entries are counted too. Unlike the Group view of the panel's message menu (one row per number), it counts every entry. In our test environment each unsecured DNC connection left an Info entry, so the value grew with every new connection. A secure connection (`RPC secure`, `connection_name`) left none, and an empty entry with no grade, number or text is not counted (see `alarmStatus` and `alarmList`)
+
 ## /machine/channel/alarmList
 ```yaml
 value_type: "objectArray"
 null_able: false
 required_filters: ["channel"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
+field_codes: {"severity": [{"value": "alarm", "name": "Alarm"}, {"value": "warning", "name": "Warning"}]}
 ```
 
 The channel's **active alarms + operator/macro messages** list. Return type `objectArray`, or an empty array `[]` if none. For Siemens, alarms are NCK-global so the `channel` value is ignored.
@@ -311,25 +344,31 @@ Element: `{"code": "OH0700", "message": "SPINDLE OVERHEAT", "category": "Overhea
 
 The key set is **always the same regardless of machine**: when a value is unavailable the key is not dropped, it is `null` (same convention as `entry`). `severity` has only the two values `"alarm"` / `"warning"`.
 
-- **code**: **the identifier exactly as the control's panel shows it, as a string** - Fanuc: alarm type letters plus the 4-digit number (`"OT0501"`, `"PS0010"`; operator/macro messages carry the message number, `"2000"`), Siemens: the alarm number (`"4230"`, `"700015"`; the number range tells the origin: `0`-`9999` general, `10000`-`19999` channel, `20000`-`29999` axis/spindle, `60000`-`69999` cycles, `100000`-`199999` HMI, `200000`-`299999` drive (SINAMICS), `300000`-`399999` drive and I/O, `400000`-`899999` PLC, of which `500000`-`899999` are defined by the machine builder; Diagnostics Manual), Mitsubishi: class plus detail (`"M01 0101"`, `"S01 0051"`, `"EMG EXIN"`). Letters and leading zeros are significant, so **keep it as text and look it up as-is** in the manual. When no identifier can be obtained it is `""`, never `null` (in practice all three controls always fill it). Replaces the integer `number` as of 1.2.0
+- **code**: **the identifier exactly as the control's panel shows it, as a string** - Fanuc: alarm type letters plus the 4-digit number (`"OT0501"`, `"PS0010"`; operator/macro messages carry the message number, `"2000"`), Siemens: the alarm number (`"4230"`, `"700015"`; the number range tells the origin: `0`-`9999` general, `10000`-`19999` channel, `20000`-`29999` axis/spindle, `60000`-`69999` cycles, `100000`-`199999` HMI, `200000`-`299999` drive (SINAMICS), `300000`-`399999` drive and I/O, `400000`-`899999` PLC, of which `500000`-`899999` are defined by the machine builder; Diagnostics Manual), Mitsubishi: class plus detail (`"M01 0101"`, `"S01 0051"`, `"EMG EXIN"`). Letters and leading zeros are significant, so **keep it as text and look it up as-is** in the manual. When no identifier can be obtained it is `""`, never `null` (in practice Fanuc, Siemens and Mitsubishi always fill it; on Heidenhain an entry without a number gives `""`). Replaces the integer `number` as of 1.2.0
 - **message**: display text
 - **category**: on Fanuc, for alarms, the cause family (`Servo`, `Overheat`, `Spindle`, `PLC`, etc.: undefined types come as a numeric string); for messages, the source (`Operator message` = PMC/external input, `Macro message` = part-program #3006). Siemens: the source name the server puts on the event (`SourceName`), as is (e.g. `NCU`: falls back to `Alarm` when empty). Mitsubishi: the alarm class as shown on the operator panel (`EMG`, `S01`, `M01`, etc.)
 - **severity**: **the grade the control gives the entry**. `"alarm"` = what the control shows as an alarm (red on the operator panel) / `"warning"` = what it shows as a warning or notice. It does not say whether machining stopped. Fanuc: every alarm in the alarm list is alarm, background edit alarms (`BG`) included (the operator panel shows them as red alarms; automatic operation can still start while a `BG` alarm is up); operator/macro messages are all warnings. Siemens: translates the server's severity (1–1000) at a 500 boundary. Mitsubishi: what the control paints red (NC alarms, PLC alarms) is alarm, what it paints yellow (NC warnings, stop codes, operator messages) is warning - the same criterion as `alarmStatus`. Whether an NC alarm line is a warning follows the control's own judgement (`GetAlarm3`) with EZSocket `FCSB1224W100-A9` or later; with earlier versions the category code decides (`M00`/`M01`/`M50`/`S52`/`S53`/`V5x` are warnings). Whether "machining is currently stopped" should be judged by `executionStatus` rather than this field, but note that **while an alarm is up that value too can read `3` (Run) on some machine types** (see that address). A warning in a stopped state means it is waiting for operator intervention such as macro `#3006`
 - Fanuc carries at most **100 active alarms** (the read size deemesh uses) and **17 operator/macro messages** (the count the FOCAS2 specification sets for reading them all: 16 operator messages plus the macro message) per read. Mitsubishi carries **10 per alarm kind**, so at most **40** in total (vendor API limit). The limits apply per kind (Fanuc reads alarms and messages separately, Mitsubishi takes 10 per kind), so an overflow is cut only within the kind that overflowed.
-- **raisedAt**: the time raised, in **UTC with a trailing `Z`** (`"2026-07-29T11:11:03Z"`). Siemens gives the actual time, and `null` for an entry without a time (shown as `---` on the operator panel; on an 840D sl bench this happened after restarting with the emergency stop on); Fanuc and Mitsubishi are always `null` (active alarms have no time information)
+- **raisedAt**: the time raised, in **UTC with a trailing `Z`** (`"2026-07-29T11:11:03Z"`). Siemens gives the actual time, and `null` for an entry without a time (shown as `---` on the operator panel; on an 840D sl bench this happened after restarting with the emergency stop on); Heidenhain also gives the actual time (see below); Fanuc and Mitsubishi are always `null` (active alarms have no time information)
   - The number **differs from what the machine's own screen (HMI) shows**: the HMI renders the machine's local time while this is UTC. They are the same instant written differently; converting is for whoever knows the machine's time zone (the host application). OPC-UA events do have a field for the local-time offset, but it was empty on the control we measured
   - **Do not subtract it from `/machine/currentDateTime`.** Beyond the time zone, the two come from **different clocks**; on one machine they were measured about 18 minutes apart (clock setup varies by site)
+
+**On Heidenhain** it lists the entries of `GetErrorList`. `code` is the number exactly as the operator panel shows it (`130-07e2`, `PLC00050`), `category` is the control's error group (`Operating`, `Programming`, `PLC`, `General`, `Remote`, `Python`), `""` for an entry without a group and the group's number as a string for a group deemesh does not know. `severity` is the grade the control gives: the Error family is `alarm`, while Warning, Info and Note are `warning`, and an entry without a grade, or with a grade deemesh does not know, is `alarm` to be safe. `message` comes in the control's display language. `raisedAt` is UTC (`Z`): we did not find the time zone stated in the reference, but in our test environment it matched the PC's UTC to the second and differed from the operator panel's message window (the control's local time) by the time-zone offset. Info entries are listed too, so in our test environment the Info entries (`130-07e2`) left by each unsecured DNC connection had piled up. With a secure connection (`RPC secure`, `connection_name`) no such entry was left. An empty entry with no grade, number or text is not listed (in our test environment one such entry came after all messages were cleared on the operator panel, while the operator panel showed nothing). The channel is not used to filter (there is one channel).
 
 ## /machine/channel/singleBlockOn
 ```yaml
 value_type: "boolean"
 null_able: false
 required_filters: ["channel"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
-write: []
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
+write: ["nc_dnc_heidenhain"]
 ```
 
 The single-block switch state (`true` = on). Fanuc reads the F4 signal bit, Siemens `singleBlockActive`, and Mitsubishi a PLC output (Y) bit in the operator-panel signal block.
+
+Heidenhain decides it from the execution mode (`GetExecutionMode`) rather than a switch signal: in program run with Single block on it reads `true` even while stopped (confirmed in our test environment), and in manual or MDI mode it reads `false` because the execution mode then reports manual or MDI. According to the TNC7 User's Manual the Single block switch exists in program run only, and MDI always runs one block at a time without a switch; this address reports the switch, so it reads `false` in MDI as well.
+
+**Writing is supported on Heidenhain only** (`SetExecutionMode`; the other controls answer status `-20` (not supported)). Single block is a switch inside the program run operating mode, so it is accepted in that mode only; in another mode such as manual or MDI the answer is status `-22` (machine state), because switching it on would change the operating mode, so write `2` to `/machine/channel/operateMode` first. If it is already in that state, nothing is sent and the answer is status `0`. In our test environment it could be switched on and off during a run as well, and the operator panel showed Single block at once.
 
 ## /machine/channel/dryRunOn
 ```yaml
@@ -366,7 +405,7 @@ read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
 write: []
 ```
 
-The block-skip (`/`) switch state (`true` = on). `channel` filter. Supported on all three machine types.
+The block-skip (`/`) switch state (`true` = on). `channel` filter. Supported on Fanuc, Siemens and Mitsubishi. On Heidenhain deemesh has not found a way to read this switch, so the status is `-20` (according to the TNC7 User's Manual, program run has a skip-block switch).
 
 **On controls with several skip levels, this address still looks only at the plain `/`.** Some controls let you number the prefix (`/2`, `/3`, …) so different sections are skipped by different switches (Siemens documents levels `0`–`9`, Mitsubishi `BDT1`–`BDT9`), but what this address reports is always the **unnumbered `/`**. There is no address for the numbered levels.
 
@@ -379,7 +418,7 @@ read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
 write: []
 ```
 
-The machine-lock (axis-motion lock) state (`true` = on). `channel` filter. Supported on all three machine types; for Siemens this is the program-test (`progTestActive`) state.
+The machine-lock (axis-motion lock) state (`true` = on). `channel` filter. Supported on Fanuc, Siemens and Mitsubishi (Heidenhain answers status `-20`); for Siemens this is the program-test (`progTestActive`) state.
 
 **Mitsubishi publishes this signal per axis, while this address is one value per channel.** It therefore reads `true` **only when every axis in that channel is locked**. Calling a partial lock "on" would read as "nothing is moving" and lead a consumer to mistake real machining for a test run. The operator-panel switch drives all axes together, so on an ordinary machine the distinction never surfaces.
 
@@ -388,44 +427,54 @@ The machine-lock (axis-motion lock) state (`true` = on). `channel` filter. Suppo
 value_type: "float"
 null_able: false
 required_filters: ["channel"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
-write: []
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
+write: ["nc_dnc_heidenhain"]
 ```
 
 The rapid-traverse override (%). Returns `float` + `unit:"%"`, the value **to the 0.1% digit**. It is usually a whole percent, but a control set to 0.1% steps reports a fraction such as `87.5`. **Fanuc depends on the method the machine builder's ladder selects** (Connection Manual B-64483EN-1): the default `ROV1`/`ROV2` method (`G14`) is stepped, so only `100`/`50`/`25`/`0` appear (`0` is F0, the speed in parameter `1421`); the 1% step method (`HROV`, `G96`) gives integers `0` to `100`; the 0.1% step method (`HROV` and `FHROV` both on, `G96` and `G353`) reports the value down to the 0.1% digit, such as `87.5`. In every method a value above 100% is capped at `100`. On a multi-path control the path's own signals are read (addresses shift by `1000` per path). Siemens is continuous and, like the feed override, it is **the effective value** rather than the switch value: while the PLC enable signal `DB21.DBX6.6` is off, the value `100` is reported regardless of the dial (when it is dropped is up to the machine builder's ladder; the machine we measured kept it off from emergency stop until the panel's ready button, MC READY, was pressed). Machines without a dedicated rapid dial commonly have the ladder apply the feed dial to rapid as well; when it is applied that way, feed override settings above 100% are capped by the control at 100% for rapid (Basic Functions Manual). Measured: with the feed dial at 110, the feed override address read the value `110` and this address read the value `100`. **Mitsubishi depends on the method the machine builder's ladder selects** (PLC Interface Manual IB-1501272): with the method-selection signal `ROVS` (`YC6F`) off, the code signals `ROV1`/`ROV2` (`YC68`/`YC69`) give the four values `100`/`50`/`25`/`0` (the manual's `1%` step is reported as `0`, like Fanuc); with it on, the per-part-system register `R2502` (0-100% in 1% units) gives a continuous value.
 
 On those two, `0` does not mean "stopped" but **the slowest rapid step that machine defines** (the lowest position on the panel). What speed that actually is depends on the machine's settings and cannot be read from this address.
 
+Heidenhain gives the rapid-traverse override from `GetOverrideInfo` (a whole percent). In our test environment a written value read back as it was.
+
+**Writing is supported on Heidenhain only** (`SetOverrideRapid`; the other controls answer status `-20` (not supported)). Write a whole percentage, as in `{"value": 80}`. A value whose fractional part is `0` (`80.0`) is accepted; a value with a fractional part such as `50.5`, or a negative value, is status `-16` (invalid write value). The machine decides the range it accepts, and **in our test environment the control clamped a value outside that range to the nearest end and answered status `0`** (in our test environment the range for rapid traverse was from `0` to `100`, so writing `150` set `100`). Read the value back to see what was set. In our test environment a written value took about 0.1 s to show up in a read, so a read right after the write could still return the previous value. A written value takes effect during automatic operation as well and stays after the run ends. Operating the override on the operator panel sets the panel's value, and writing again sets the written one (whichever changed last; confirmed with the virtual dial in our test environment, not with the dial of a real machine). **Write caution**: the rapid-traverse rate of a running machine changes at once.
+
 ## /machine/channel/feedOverride
 ```yaml
 value_type: "float"
 null_able: false
 required_filters: ["channel"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
-write: []
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
+write: ["nc_dnc_heidenhain"]
 ```
 
 The feed override (%). Returns `float` + `unit:"%"`, the value **to the 0.1% digit**. It is usually a whole percent, but a control set to 0.1% steps reports a fraction such as `87.5`. Fanuc reads the PMC `G12` signals (`*FV0` to `*FV7`, inverted binary, 0 to 254%), and all signals off reads `0` as the control treats it (Connection Manual B-64483EN-1). It is the switch value: while the override cancel signal (`OVC`) forces the effective rate to 100% the switch value is still reported, and the second feed override (`G13`) is not applied. On a multi-path control the path's own signals are read (addresses shift by `1000` per path, such as `G1012` for path 2). Siemens reads the `feedRateIpoOvr` node, which is not the switch value but **the effective value applied at the interpolator**. While the PLC enable signal `DB21.DBX6.7` is off, the control internally treats the override as 100% (Basic Functions Manual), so the value `100` is reported regardless of the dial. When that signal is dropped is up to the machine builder's ladder. On the machine we measured it went off the moment the emergency stop was pressed and stayed off through releasing the stop and resetting, so the value `100` was reported until the panel's ready button (labeled MC READY on that machine) was pressed, at which point the dial value returned. The dial position itself kept arriving at the PLC the whole time. **Mitsubishi is read the way the machine builder's ladder selects it** (PLC Interface Manual IB-1501272): with the method-selection signal `FVS` (`YC67`) off, the override code signals (`YC60`-`YC64`, 0-300% in 10% steps) are decoded; with it on, the per-part-system register `R2500` (0-300% in 1% units) is read. When all code signals are off the control keeps the previous value, so there is nothing to read and the address answers with status `-17`.
+
+Heidenhain gives the feed override from `GetOverrideInfo` (a whole percent). In our test environment it matched the value on the operator panel.
+
+**Writing is supported on Heidenhain only** (`SetOverrideFeed`; the other controls answer status `-20` (not supported)). Write a whole percentage, as in `{"value": 80}`. A value whose fractional part is `0` (`80.0`) is accepted; a value with a fractional part such as `50.5`, or a negative value, is status `-16` (invalid write value). The machine decides the range it accepts, and **in our test environment the control clamped a value outside that range to the nearest end and answered status `0`** (in our test environment the range for feed was from `0` to `150`, so writing `200` set `150`). The TNC7 User's Manual ('Cutting data') gives the feed-rate override potentiometer a range of 0% to 150%, and says that while the handwheel is on, the handwheel's own feed-rate potentiometer applies ('Fundamentals' of the electronic handwheel). Read the value back to see what was set. In our test environment a written value took about 0.1 s to show up in a read, so a read right after the write could still return the previous value. A written value takes effect during automatic operation as well and stays after the run ends. Operating the override on the operator panel sets the panel's value, and writing again sets the written one (whichever changed last; confirmed with the virtual dial in our test environment, not with the dial of a real machine). **Write caution**: the feed rate of a running machine changes at once.
 
 ## /machine/channel/feedCommanded
 ```yaml
 value_type: "float"
 null_able: false
 required_filters: ["channel"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
 The commanded feedrate (F command value). Returns `float`. Fanuc uses the modal F, Siemens `cmdFeedRateIpo`, and Mitsubishi the `F command feed speed` (FA).
 
-The unit follows the machine setting (mm/min or inch/min). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address.
+The unit follows the machine setting (mm/min or inch/min in per-minute feed). Fanuc returns the programmed F as it is, so in per-revolution feed (`G95`, `G99`) the value is per revolution (check the feed mode with `/machine/channel/gModalCategory/gModal?gModalCategory=5`). We have not confirmed the unit of this value in per-revolution feed on Siemens and Mitsubishi. For mm or inch, read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address.
+
+**Heidenhain** reads, as PLC data, the value the PLC API definition Heidenhain places on the control describes as the programmed feed rate per minute. It is the last F commanded, so it stays the same in a rapid (FMAX) block, and it equalled the program's F in our test environment, the TNC7 programming station (mm/min). With the control's unit of measure switched to inch and `F100` (10 inch/min) commanded in an inch program, it still came in mm/min (`254`). In an inch program F is in units of 0.1 inch/min (TNC7 User's Manual, 'Cutting data'). A feed per revolution command (`FU`, the distance in mm per spindle revolution, used mainly for turning, according to the same manual) gives the per-minute value converted with the commanded spindle speed: in our test environment `FU0.3` at `S1000` read `300`, and still `300` with the spindle override lowered to 50% so that the actual speed was 500. A negative value answers status `-17`, because what it would mean is not known. It is PLC data, so the connection needs `access_password`; when it is missing or the control rejects it, the status is `-20`. If deemesh finds none of the symbol names it knows for this value on the machine, the status is also `-20`. Symbol names can differ between machines' PLC programs; if you know the name that holds this value on that machine, read it with `/machine/plcAddress/plcType/plcValue`.
 
 ## /machine/channel/feedActual
 ```yaml
 value_type: "float"
 null_able: false
 required_filters: ["channel"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
@@ -435,14 +484,16 @@ This is the value the `F` command sets. It holds at the commanded rate as the di
 
 Fanuc uses `actf` and Siemens `actFeedRateIpo`. Mitsubishi splits the effective feedrate into **an automatic-operation value and a manual one**, so both are read and combined - the value is there while you move an axis by jog or handwheel too.
 
-The unit follows the machine setting (mm/min or inch/min). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address.
+The unit follows the machine setting (mm/min or inch/min). **On Fanuc this address carries `unit`** (`mm/min`, `inch/min`). The value is always the actual feed per minute. Parameters `3107#3` and `3191#5` can switch the panel's F display to feed per revolution (`MM/REV`, parameter manual); the deemesh value then stays per minute and `unit` says so (confirmed on a 31i bench and on a 0i-F lathe in our test environment: panel `0.10 MM/REV`, deemesh `50.0` `mm/min`). For feed per revolution, divide by `/machine/channel/spindle/spindleSpeedActual`, keeping in mind that the two values are read at different moments. It is the unit the control reported at connect; on older series without the function that reports it (`cnc_rdspeed`; per the support table in the FOCAS2 manual, Series 16/18/21, 0i-A, 15 and 15i lathes) the value is the control's as given, with no `unit`. **Fanuc fixes the unit and the decimal places at connect, so reconnect after changing a unit setting such as `G20`/`G21`** (in the SDK `deemesh_disconnect` then `deemesh_connect`; on the hub `POST /admin/reload`). Until then values come with the old decimal places and can be off by a factor of 10. Other controls carry no `unit`, because the unit is not fixed per address. Without `unit`, read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual).
+
+**Heidenhain** reads, as PLC data, the value the PLC API definition Heidenhain places on the control describes as the current contouring feed rate. It equalled the F of the control's status line (270 and 3 mm/min at overrides of 90% and 1% in our test environment, the TNC7 programming station). With the control's unit of measure switched to inch it still came in mm/min (`270` while the panel showed F `10.6` inch/min). A feed per revolution command (`FU0.3` at `S1000`) also came per minute and matched the panel's F (`270` at a feed override of 90%). The TNC7 User's Manual ('Positions workspace') also states that the F of that display is converted to a per-minute value whatever unit it was programmed in. It is PLC data, so the connection needs `access_password`; when it is missing or the control rejects it, the status is `-20`. If deemesh finds none of the symbol names it knows for this value on the machine, the status is also `-20`. Symbol names can differ between machines' PLC programs; if you know the name that holds this value on that machine, read it with `/machine/plcAddress/plcType/plcValue`.
 
 ## /machine/channel/axisCount
 ```yaml
 value_type: "int"
 null_able: false
 required_filters: ["channel"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
@@ -450,14 +501,16 @@ The channel's **user axis count**. Cached at connection time. The valid range of
 
 It counts geometry axes together with **non-spindle auxiliary axes** (indexing rotary tables, tailstocks, and the like), and excludes spindles; those are covered by `spindleCount` and the `spindle` filter.
 
-**It differs per path.** On a multi-path control each channel has its own axis configuration, and a path with no axes reads `0`; the axis addresses on that channel then answer with status `-20`.
+**It differs per path.** On a multi-path control each channel has its own axis configuration, and a path with no axes reads `0`; the axis addresses on that channel then answer with status `-20` on Fanuc and status `-18` on the other controls.
+
+**On Heidenhain** it counts the axes whose type is not spindle (main and auxiliary, linear and rotary) in the channel's axis list that `GetChannelInfo` returns at connection. The HEIDENHAIN DNC reference states that the axis names and types in this list can change during operation; deemesh uses the list read at connection, so later changes take effect when it reconnects. In our test environment a rotary axis served as the turning spindle during turning mode and dropped out of this list (connecting in milling mode gave `X Y Z A C` and in turning mode `X Y Z A`). What changes with the mode is decided by the machine manufacturer (TNC7 User's Manual, 'Switching the operating mode with FUNCTION MODE': a mode change runs the manufacturer's macro and activates the kinematic model it defines). Read the axis list by connecting in milling mode, and reconnect after a mode change to refresh it.
 
 ## /machine/channel/axis/axisName
 ```yaml
 value_type: "string"
 null_able: false
 required_filters: ["channel", "axis"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
@@ -465,31 +518,35 @@ The axis name (e.g. `"X"`, `"Z1"`). Returns `string`, read-only. Used to confirm
 
 **A name from here can be used directly in the `axis` filter** (`axis=Z1`, `axis=X,Z`). Letter case is ignored, and a name the channel does not have is status `-18`. Names are meaningful within a channel, so each channel is looked up on its own.
 
-Sources: the axis names in the servo load meter data on Fanuc (`cnc_rdsvmeter`, cached at connection), `/Channel/GeometricAxis/name` on Siemens, and axis parameter `#1013` on Mitsubishi.
+Sources: the axis names in the servo load meter data on Fanuc (`cnc_rdsvmeter`, cached at connection), `/Channel/GeometricAxis/name` on Siemens, axis parameter `#1013` on Mitsubishi, and on Heidenhain the names (the programmable axis names) in the channel's axis list that `GetChannelInfo` returns at connection. On Heidenhain the `axis` number follows that list with the spindles left out. The HEIDENHAIN DNC reference states that these names can change during operation; deemesh uses the names read at connection (also when it turns a name given in the `axis` filter into a number), so later changes take effect when it reconnects. In our test environment a rotary axis served as the turning spindle during turning mode and dropped out of this list (connecting in milling mode gave `X Y Z A C` and in turning mode `X Y Z A`). What changes with the mode is decided by the machine manufacturer (TNC7 User's Manual, 'Switching the operating mode with FUNCTION MODE': a mode change runs the manufacturer's macro and activates the kinematic model it defines). The number and order of axes in the panel's position display are set by the machine configuration (manual, 'Positions workspace'), so the `axis` number may differ from the row order there; check by name. Read the axis list by connecting in milling mode, and reconnect after a mode change to refresh it.
 
 ## /machine/channel/axis/machinePosition
 ```yaml
 value_type: "float"
 null_able: false
 required_filters: ["channel", "axis"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
 The axis's machine coordinate. Specify the axis with the `axis` filter; a range (`axis=1-3`) or multiple selection (`axis=1,2`) is possible. The return type is `float` (64-bit double precision).
 
-The four position addresses (machinePosition/workPosition/distanceToGo/relativePosition) are all **real distances**, in the machine's configured unit (mm/inch) as-is and matching the operator-panel display (Fanuc's internal integer representation is normalized by the SDK using each axis's decimal scaling). All four are only valid once the axis has established its reference point; right after power-on, check `/machine/channel/axis/axisReferencedOn` first (before establishment, plausible-looking numbers arrive silently). On Mitsubishi that address returns status `-20`, so check the panel or fall back to `/machine/channel/axis/axisAtReferencePositionOn`, which only tells whether the axis is at the reference position right now.
+The four position addresses (machinePosition/workPosition/distanceToGo/relativePosition) are all **real distances**, in the machine's configured unit (mm/inch) as-is and matching the operator-panel display (Fanuc's internal integer representation is normalized by the SDK using each axis's decimal scaling). On Heidenhain they stay in mm when the panel is switched to inch, so they differ from the panel display then (see below). All four are only valid once the axis has established its reference point; right after power-on, check `/machine/channel/axis/axisReferencedOn` first (before establishment, plausible-looking numbers arrive silently). On Mitsubishi that address returns status `-20`, so check the panel or fall back to `/machine/channel/axis/axisAtReferencePositionOn`, which only tells whether the axis is at the reference position right now.
 
 ⚠️ **This value is the coordinate of the tool reference point (the spindle face).** `workPosition` is at the tool tip, so the difference between the two includes **tool length compensation**; `machinePosition − work offset = workPosition` does not hold (the active work coordinate system's rotation, scaling and mirroring bear on it too). If you need workpiece coordinates, read `workPosition` instead of computing them yourself.
 
-The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address.
+The unit follows the machine setting (mm or inch, degrees on a rotary axis). **On Fanuc this address carries `unit`** (`mm`, `inch` or `deg`): the unit the control reported at connect. It is absent only on older series without the function that reports it (`cnc_rdposition`; per the support table in the FOCAS2 manual, Series 16/18/21, 0i-A, 15 and 15i lathes). **Fanuc fixes the unit and the decimal places at connect, so reconnect after changing a unit setting such as `G20`/`G21`** (in the SDK `deemesh_disconnect` then `deemesh_connect`; on the hub `POST /admin/reload`). Until then values come with the old decimal places and can be off by a factor of 10. Other controls carry no `unit`, because the unit is not fixed per address. Without `unit`, read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual).
+
+**On Fanuc the machine position may not follow G20/G21.** With parameter `3104#0` at `0` (the default) it comes in the machine's own unit (parameter `1001#0`) whatever the input unit is, and with `1` it follows the input unit (parameter manual, `3104`). So on a mm machine used with inch input, this address is in mm while `workPosition`, `relativePosition` and `distanceToGo` are in inch (confirmed on the simulator). `unit` tells the two apart; on an older series without `unit`, read the two parameters through `/machine/channel/parameter/index/parameterValue` instead of `gModalCategory=4`.
+
+**Heidenhain** reads, as PLC data, the axis position the basic PLC program copies from the NC. It equalled the "actual reference position (RFACTL)" of the control's position display (compared at rest and while moving in our test environment, the TNC7 programming station), in mm (degrees for rotary axes): in our test environment it stayed in mm both with the control's unit of measure switched to inch, so that the panel showed inch, and with an inch program (`BEGIN PGM … INCH`) running (`24.7763` while the panel showed `0.9754` inch). RFACTL is the tool position measured in the machine coordinate system M-CS (TNC7 User's Manual, 'Position displays'), and in turning mode the value also matched the panel's RFACTL (the X axis carries a diameter sign `⌀` there, but the number was the same as in milling mode). **An axis without reference information answers status `-22`**: the basic PLC program updates this value only for axes that have reference information, so on an axis that lost it (`axisReferencedOn` is `false`) the value would be stale (our test environment always has its reference established, so that case has not been confirmed). **An axis not assigned to the channel now also answers status `-22`**: on a machine that switches between milling and turning, after connecting in milling mode and switching to turning mode, the rotary axis serves as the turning spindle and drops out of the channel, and in our test environment this value stayed at `0` meanwhile even while the turning spindle was running. The value comes back on returning to milling mode. It is PLC data, so the connection needs `access_password`; when it is missing or the control rejects it, the status is `-20`. If deemesh finds none of the symbol names it knows for this value on the machine, the status is also `-20`. Symbol names can differ between machines' PLC programs; if you know the name that holds this value on that machine, read it with `/machine/plcAddress/plcType/plcValue`.
 
 ## /machine/channel/axis/workPosition
 ```yaml
 value_type: "float"
 null_able: false
 required_filters: ["channel", "axis"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
@@ -499,7 +556,9 @@ This value is measured at the **tool tip** and is the result after the active wo
 
 **When an edited table value reaches this coordinate differs by control.** Siemens fixes work offsets and tool offsets **at activation time**. Programming G500 or G54 to G599 copies the table (`$P_UIFR`) into the channel's active frame (`$P_IFRAME`) (Basic Functions K2), and a change to tool offset data takes effect the next time a T or D number is programmed (Programming Fundamentals; immediate effect only on a machine with `MD9440` set, a setting the manual flags as a collision risk). So editing G54 or a tool length at the panel while a program runs leaves this value unchanged until the next activation (or a restart after reset) (confirmed on our 840D sl bench: G54 X 80.4 to 95.0 and tool length 100 to 105, neither reflected). A coordinate-watching app should not treat "the table changed but the coordinate did not move" as a fault. On Fanuc, parameter `5001#6` (EVO: `0` for the next G43/H block, `1` for the next buffered block) decides when a tool length change applies and `5001#4` (EVR) the radius, while a work offset change is reflected in this value at once (confirmed on the simulator). On Mitsubishi, a tool compensation amount or work coordinate offset changed during automatic operation (including a single block stop) is valid from the next block or after several subsequent blocks (Instruction Manual). A `workOffsetValue` write during automatic operation, however, is refused by the control with status `-22` (confirmed on the simulator; the same with the tool compensation parameter `#11017` set to `1`). Tool offset writes were accepted during automatic operation (confirmed on the simulator).
 
-The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address.
+The unit follows the machine setting (mm or inch, degrees on a rotary axis). **On Fanuc this address carries `unit`** (`mm`, `inch` or `deg`): the unit the control reported at connect. It is absent only on older series without the function that reports it (`cnc_rdposition`; per the support table in the FOCAS2 manual, Series 16/18/21, 0i-A, 15 and 15i lathes). **Fanuc fixes the unit and the decimal places at connect, so reconnect after changing a unit setting such as `G20`/`G21`** (in the SDK `deemesh_disconnect` then `deemesh_connect`; on the hub `POST /admin/reload`). Until then values come with the old decimal places and can be off by a factor of 10. Other controls carry no `unit`, because the unit is not fixed per address. Without `unit`, read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual).
+
+On Heidenhain it is `GetCutterLocation`, which the reference describes as the tool-tip position in the workpiece coordinate system; it comes by coordinate name, so deemesh matches it to the names of `axisName`. In our test environment it matched the tool position in the panel's position display (NOML) each time a datum shift (`TRANS DATUM`), a rotation (cycle 10) and a scaling (cycle 11) were applied one after another, and the TNC7 User's Manual ('Position displays') calls that display the position in the input coordinate system (I-CS). Switching the panel's position display to the actual reference position (RFACTL) left this value as it was. **In turning mode X is a diameter value, as on the panel** (`-65.247` while the panel showed `X ⌀ -65.247` in our test environment; per the manual, the X coordinate in turning describes the workpiece diameter). deemesh returns the value HEIDENHAIN DNC gives, unchanged. In our test environment, with the control's unit of measure switched to inch and an inch program (`BEGIN PGM … INCH`) running, this value still came in mm (rotary axes in degrees). The HEIDENHAIN DNC reference says the value can also come in inch, but we could not produce that case, so we have not confirmed it. deemesh does not read `gModalCategory` on Heidenhain (status `-20`), so the method above cannot tell you the unit there. An axis that was in the channel at connection but is not among the control's coordinates now answers status `-22`: in our test environment that happened to the rotary axis `C` after connecting in milling mode and switching to turning mode, where it serves as the turning spindle, and the value came back on returning to milling mode (`/machine/channel/axisCount`).
 
 ## /machine/channel/axis/relativePosition
 ```yaml
@@ -514,20 +573,22 @@ The axis's relative coordinate. Returns `float`.
 
 ⚠️ **Its origin is not fixed.** This is a counter the operator can zero at any time (origin set, counter set, or a `G92` preset), so the value alone does not tell you where the machine is. Use `machinePosition` when you need a fixed reference, or `workPosition` for machining coordinates.
 
-The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address.
+The unit follows the machine setting (mm or inch, degrees on a rotary axis). **On Fanuc this address carries `unit`** (`mm`, `inch` or `deg`): the unit the control reported at connect. It is absent only on older series without the function that reports it (`cnc_rdposition`; per the support table in the FOCAS2 manual, Series 16/18/21, 0i-A, 15 and 15i lathes). **Fanuc fixes the unit and the decimal places at connect, so reconnect after changing a unit setting such as `G20`/`G21`** (in the SDK `deemesh_disconnect` then `deemesh_connect`; on the hub `POST /admin/reload`). Until then values come with the old decimal places and can be off by a factor of 10. Other controls carry no `unit`, because the unit is not fixed per address. Without `unit`, read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual).
 
 ## /machine/channel/axis/distanceToGo
 ```yaml
 value_type: "float"
 null_able: false
 required_filters: ["channel", "axis"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
 The axis's **remaining travel** in the current block. Returns `float`.
 
-The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address.
+The unit follows the machine setting (mm or inch, degrees on a rotary axis). **On Fanuc this address carries `unit`** (`mm`, `inch` or `deg`): the unit the control reported at connect. It is absent only on older series without the function that reports it (`cnc_rdposition`; per the support table in the FOCAS2 manual, Series 16/18/21, 0i-A, 15 and 15i lathes). **Fanuc fixes the unit and the decimal places at connect, so reconnect after changing a unit setting such as `G20`/`G21`** (in the SDK `deemesh_disconnect` then `deemesh_connect`; on the hub `POST /admin/reload`). Until then values come with the old decimal places and can be off by a factor of 10. Other controls carry no `unit`, because the unit is not fixed per address. Without `unit`, read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual).
+
+**Heidenhain** reads, as PLC data, the distance to go the basic PLC program copies from the NC. It equalled the distance to go (Δ) of the control's position display (compared while feeding in our test environment, the TNC7 programming station), in mm: in our test environment it stayed in mm both with the control's unit of measure switched to inch, so that the panel showed inch, and with an inch program (`BEGIN PGM … INCH`) running. **An axis without reference information answers status `-22`**: the basic PLC program updates this value only for axes that have reference information, so on an axis that lost it (`axisReferencedOn` is `false`) the value would be stale (our test environment always has its reference established, so that case has not been confirmed). **An axis not assigned to the channel now also answers status `-22`**: on a machine that switches between milling and turning, after connecting in milling mode and switching to turning mode, the rotary axis serves as the turning spindle and drops out of the channel, and in our test environment this value stayed at `0` meanwhile even while the turning spindle was running. The value comes back on returning to milling mode. It is PLC data, so the connection needs `access_password`; when it is missing or the control rejects it, the status is `-20`. If deemesh finds none of the symbol names it knows for this value on the machine, the status is also `-20`. Symbol names can differ between machines' PLC programs; if you know the name that holds this value on that machine, read it with `/machine/plcAddress/plcType/plcValue`.
 
 ## /machine/channel/axis/totalWorkOffsetValue
 ```yaml
@@ -543,7 +604,7 @@ The **total work offset actually in effect** right now, per axis (translation). 
 Where `workOffsetValue` is the value **stored in the table**, this address is the value **being applied**. The total is built up in layers (values measured on our 840D sl bench):
 
 ```
-stored in the table      workOffsetValue?workOffset=G54     80.400   the active system is in gModalCategory=7
+stored in the table      workOffsetValue?workOffset=G54     80.400   the selected system is in activeWorkOffset
 + shifts outside it      basic reference (set actual value, scratching)   20.000   the panel's Basic reference row
                          base frames, a program TRANS, cycle frames
 = total in effect        totalWorkOffsetValue              100.400
@@ -557,9 +618,11 @@ The basic reference is the share that goes in when the operator sets the zero po
 
 This address takes no `workOffset` filter; it is "whatever is in effect", so there is no designator to choose. `axis=1-3` expansion is supported, and writing is not (a summed result is not something you write back).
 
-**Siemens only, because this value is not computed by deemesh: the control itself holds it.** SINUMERIK keeps the sum of the active frames (`$P_ACTFRAME`) as one value and exposes it over OPC-UA. On Fanuc (FOCAS2) and Mitsubishi (EZSocket) what deemesh reads is the **table** of `EXT` and `G54` to `G59`, and we have not confirmed a call that reads the amount of a program-set `G52` (local coordinate system) or `G92` (coordinate system setting) shift. A sum of the table entries would lack those two shifts and be **plausible yet possibly wrong**, so deemesh does not produce it (the rule against inventing a derived value the control does not hold as one value). On those two controls the address therefore answers status `-20`.
+**Siemens only, because this value is not computed by deemesh: the control itself holds it.** SINUMERIK keeps the sum of the active frames (`$P_ACTFRAME`) as one value and exposes it over OPC-UA. On Fanuc (FOCAS2) and Mitsubishi (EZSocket) what deemesh reads is the **table** of `EXT` and `G54` to `G59`, and we have not confirmed a call that reads the amount of a program-set `G52` (local coordinate system) or `G92` (coordinate system setting) shift. A sum of the table entries would lack those two shifts and be **plausible yet possibly wrong**, so deemesh does not produce it (the rule against inventing a derived value the control does not hold as one value). On those two controls the address therefore answers status `-20` (not supported). Heidenhain answers status `-20` (not supported) too: what deemesh reads is the preset **table**, an edit to it reaches the coordinates only when the preset is activated again, and an axis whose cell is empty keeps the offset it had (`workOffsetValue`), so the table cannot give what is in effect now.
 
-**How to get what you need on Fanuc and Mitsubishi**: ① If you need coordinates, read `/machine/channel/axis/workPosition`; the control computed it with `G52`, `G92` and tool compensation all applied, so this address is not needed. ② If you need the settable offset itself, read `workOffsetValue` for `EXT` and for the active coordinate system (check it with `gModalCategory=7`) and add them. On Fanuc a table edit applies at once, so that sum is the settable offset in effect. On Mitsubishi a value changed during automatic operation is valid from the next block or after several subsequent blocks (Instruction Manual), so in between the sum can be ahead of what is in effect. ③ Whether the program has set `G52` or `G92` is visible through `gModalList` and `gModalCategory`, but we have not confirmed a way to read the amount. If you need a total that includes them, judge it from the relation between `workPosition` and `machinePosition`, bearing in mind that tool compensation is mixed into that difference.
+**How to get what you need on Fanuc and Mitsubishi**: ① If you need coordinates, read `/machine/channel/axis/workPosition`; the control computed it with `G52`, `G92` and tool compensation all applied, so this address is not needed. ② If you need the settable offset itself, read `workOffsetValue` for `EXT` and for the selected coordinate system (check it with `/machine/channel/activeWorkOffset`) and add them. On Fanuc a table edit applies at once, so that sum is the settable offset in effect. On Mitsubishi a value changed during automatic operation is valid from the next block or after several subsequent blocks (Instruction Manual), so in between the sum can be ahead of what is in effect. ③ Whether the program has set `G52` or `G92` is visible through `gModalList` and `gModalCategory`, but we have not confirmed a way to read the amount. If you need a total that includes them, judge it from the relation between `workPosition` and `machinePosition`, bearing in mind that tool compensation is mixed into that difference.
+
+**How to get what you need on Heidenhain**: ① If you need coordinates, read `/machine/channel/axis/workPosition`. ② If you need the preset itself, put the number `/machine/channel/activeWorkOffset` returns into `workOffset` and read `workOffsetValue` (the rotation from `workOffsetRotation`). An axis whose cell is empty (`null`) cannot be known from the table, and after a table edit the table can be ahead of what is in effect until the preset is activated again. The control's status screen shows the active preset and transformations (TNC7 User's Manual, 'Status workspace'), but we have not found a way to read their sum through HEIDENHAIN DNC.
 
 The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address.
 
@@ -587,11 +650,11 @@ The unit follows the machine setting (mm/min or inch/min). Read `/machine/channe
 value_type: "float"
 null_able: false
 required_filters: ["channel", "axis"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
-The axis (servo) load rate. Returns `float` + `unit:"%"` (identical on all three). Fanuc reads the servo load meter, Siemens the drive load (`$VA_LOAD`, available for PROFIdrive drives only), and Mitsubishi the load current of the servo monitor (a ratio of the rated current). All three report the **present measured value**.
+The axis (servo) load rate. Returns `float` + `unit:"%"` (identical on all four). Fanuc reads the servo load meter, Siemens the drive load (`$VA_LOAD`, available for PROFIdrive drives only), and Mitsubishi the load current of the servo monitor (a ratio of the rated current). All three report the **present measured value**.
 
 **On Siemens a value appears only on axes where machine datum `36730` `$MA_DRIVE_SIGNAL_TRACKING` is `1`.** The machine data list manual states that the control receives this value only while that datum is on and the drive sends it. On an axis where it is `0` the value is always `0` (840D sl bench: a value that was always `0` with `0` appeared while the axes and the spindle moved, once we set `1` and switched the power off and on).
 
@@ -600,6 +663,8 @@ The axis (servo) load rate. Returns `float` + `unit:"%"` (identical on all three
 **This is the same physical quantity as `axisCurrent`.** On a servo, torque is proportional to current, so measuring load is measuring current; this address divides that value by the **motor's rated continuous current**. That makes it comparable across machines and axes (80% means 80% anywhere), while `axisCurrent` gives you the absolute figure. Converting between the two needs that motor's rated current, which deemesh does not expose - so **on a control that supports only one of them, the other cannot be derived**.
 
 **The Mitsubishi value has not been confirmed on a machine tool.** In our test environment (a simulator) we confirmed only that it can be read; the value was always `0`.
+
+**Heidenhain** reads, as PLC data, the motor utilization the basic PLC program reads from the drive. It is the value the control's drive diagnosis table shows as Utilization [%]. In our test environment (the TNC7 programming station) the PLC program puts fixed values there instead of the drive's, so what was confirmed is that the value equals the control's drive diagnosis table; values from a real drive have not been confirmed. It is PLC data, so the connection needs `access_password`; when it is missing or the control rejects it, the status is `-20`. If deemesh finds none of the symbol names it knows for this value on the machine, the status is also `-20`. Symbol names can differ between machines' PLC programs; if you know the name that holds this value on that machine, read it with `/machine/plcAddress/plcType/plcValue`.
 
 ## /machine/channel/axis/axisLoadCommandedPeak
 ```yaml
@@ -640,15 +705,17 @@ The axis motor current. Returns `float` + `unit:"Ampere"` on both protocols. Fan
 value_type: "float"
 null_able: false
 required_filters: ["channel", "axis"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
-The axis motor temperature. Returns `float` + `unit:"°C"` (identical on all three). For Fanuc this is diagnosis 308; for Siemens the drive parameter `R0035`; for Mitsubishi the motor temperature of the servo drive monitor.
+The axis motor temperature. Returns `float` + `unit:"°C"` (identical on all four). For Fanuc this is diagnosis 308; for Siemens the drive parameter `R0035`; for Mitsubishi the motor temperature of the servo drive monitor.
 
 **Siemens**: the value comes from the drive, so on a channel whose axis has no drive assigned this is status `-20`, a property of the machine's configuration, not a fault.
 
 **The Mitsubishi value has not been confirmed on a machine tool.** In our test environment (a simulator) we confirmed only that it can be read; the value was always `0`.
+
+**Heidenhain** reads, as PLC data, the motor temperature the basic PLC program reads from the drive. It is the value the control's drive diagnosis table shows as Temperature [°C]. In our test environment (the TNC7 programming station) the PLC program puts fixed values there instead of the drive's, so what was confirmed is that the value equals the control's drive diagnosis table; values from a real drive have not been confirmed. It is PLC data, so the connection needs `access_password`; when it is missing or the control rejects it, the status is `-20`. If deemesh finds none of the symbol names it knows for this value on the machine, the status is also `-20`. Symbol names can differ between machines' PLC programs; if you know the name that holds this value on that machine, read it with `/machine/plcAddress/plcType/plcValue`.
 
 ## /machine/channel/axis/axisPower
 ```yaml
@@ -723,7 +790,7 @@ Energy (Wh) is not power (W): W is an instantaneous rate, Wh is an accumulated a
 value_type: "boolean"
 null_able: false
 required_filters: ["channel", "axis"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_dnc_heidenhain"]
 write: []
 ```
 
@@ -735,7 +802,9 @@ On an axis where this is `false` the coordinate system is not yet established: *
 
 Once established it stays `true` wherever the axis moves; this is **coordinate-system validity**, not the momentary "is the axis at the reference position right now". That momentary state has its own sibling address, `/machine/channel/axis/axisAtReferencePositionOn`.
 
-Fanuc reads the standard CNC→PMC signal ZRF (per-axis bits of `F120`) and Siemens reads `refPtStatus` (both confirmed in our test environments). **Mitsubishi returns status `-20`**: what deemesh reads on that control is "is the axis at the reference position right now" (the panel's `#1` mark, the PLC `ZP1n` signals, `GetAxisStatus`) and the zero-point initialization completion of absolute-position systems (`ZSF`), and a latched coordinate-system-established state cannot be built from those two (in our test environment the bit dropped as soon as the axis was moved after a reference return). That momentary state is what `/machine/channel/axis/axisAtReferencePositionOn` reports, with the same meaning on every control. On Fanuc up to 16 axes are covered, and on a multi-path machine the signals of that path are read.
+Fanuc reads the standard CNC→PMC signal ZRF (per-axis bits of `F120`) and Siemens reads `refPtStatus` (both confirmed in our test environments). **Mitsubishi returns status `-20`**: what deemesh reads on that control is "is the axis at the reference position right now" (the panel's `#1` mark, the PLC `ZP1n` signals, `GetAxisStatus`) and the zero-point initialization completion of absolute-position systems (`ZSF`), and a latched coordinate-system-established state cannot be built from those two (in our test environment the bit dropped as soon as the axis was moved after a reference return). That momentary state is what `/machine/channel/axis/axisAtReferencePositionOn` reports, with the same meaning on Fanuc and Mitsubishi. On Fanuc up to 16 axes are covered, and on a multi-path machine the signals of that path are read.
+
+Heidenhain reads the PLC API's per-axis reference-information symbol. In the PLC API definition Heidenhain places on the control, this symbol means reference information is available for the axis, which is the meaning above. It is PLC data, so the connection needs `access_password`; when it is missing or the control rejects it, the status is `-20`. If deemesh finds none of the symbol names it knows for this value on the machine, the status is also `-20`. Symbol names can differ between machines' PLC programs; if you know the name that holds this value on that machine, read it with `/machine/plcAddress/plcType/plcValue`. Our test environment (the TNC7 programming station) always has its reference established, so only `true` has been confirmed. According to the TNC7 User's Manual a machine with absolute encoders needs no referencing, while on a machine with incremental encoders the reference screen opens after power-on, and program run cannot be selected until all axes are referenced.
 
 ## /machine/channel/axis/axisAtReferencePositionOn
 ```yaml
@@ -1014,69 +1083,81 @@ Like the other `…On` addresses (`singleBlockOn` and friends) this is a **setti
 value_type: "int"
 null_able: false
 required_filters: ["channel"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
 The channel's spindle count. Cached at connection time. The valid range of the `spindle` filter is `1` to this value.
 
-**On Fanuc and Siemens it differs per path.** A path with no spindle reads `0`, and the spindle addresses on that channel then answer with status `-20` - including `spindleOverride` and `spindleSpeedCommanded`, which are channel-wide values on Fanuc (Siemens reads those two per spindle as well).
+**On Fanuc and Siemens it differs per path.** A path with no spindle reads `0`, and the spindle addresses on that channel then answer with status `-20` on Fanuc (including `spindleOverride` and `spindleSpeedCommanded`, which are channel-wide values there) and status `-18` on Siemens (Siemens reads those two per spindle as well).
 
 **On Mitsubishi it is the spindle count of the whole NC** (parameter `#1039 spinno`, a base common parameter), so every channel reports the same value. deemesh reads it from parameter `#1039` for each channel, and spindles appear to be numbered NC-wide, so `spindle=1` up to this value addresses every spindle from any channel. Confirmed on a simulator with two spindles and two part systems: both part systems accept `spindle=1` and `2` (`3` answers status `-18`), and the commanded speed of each spindle reads the same from both part systems. We have not confirmed this on a machine tool.
+
+**On Heidenhain** it is the number of all the control's spindles: at connection deemesh counts the entries of spindle type in the axis list that `GetAxesInfo` of HEIDENHAIN DNC returns. It is not only the spindles assigned to the channel now, so on a machine that switches between milling and turning it counts both the milling spindle and the turning spindle (`2` in our test environment; the channel's axis list gives only `S1` in milling mode and only `S2` in turning mode). The `spindle` number follows that list and does not depend on the operating mode.
 
 ## /machine/channel/spindle/spindleOverride
 ```yaml
 value_type: "float"
 null_able: false
 required_filters: ["channel", "spindle"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
-write: []
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
+write: ["nc_dnc_heidenhain"]
 ```
 
 The spindle override (%). Returns `float` + `unit:"%"`, the value **to the 0.1% digit**. It is usually a whole percent, but a control set to 0.1% steps reports a fraction such as `87.5`. **Fanuc is a channel-common value by default** (the `G30` signals `SOV0` to `SOV7`, binary 0 to 254%, all on reads `0` as the control treats it), so every spindle shows the same value; on a machine with parameter `3713#3` (MSC) and `#4` (EOV) both set it is **per spindle** (spindle 2 `G376`, 3 `G377`, 4 `G378`; 5 and above are status `-20`) (Connection Manual B-64483EN-1). On a multi-path control the path's own signals are read (addresses shift by `1000` per path). Siemens and Mitsubishi give a per-spindle value. **Mitsubishi is read the way the machine builder's ladder selects it** (PLC Interface Manual IB-1501272): with the per-spindle method-selection signal `SPS` (`Y188F`, `+0x60` per spindle) off, the code signals `SP1`/`SP2`/`SP4` (50-120% in 10% steps) are decoded; with it on, the register `R7008` (0-200% in 1% units, `+50` per spindle) is read.
+
+Heidenhain gives a single spindle override from `GetOverrideInfo` (a whole percent), so every `spindle` reads the same value. In our test environment it matched the value on the operator panel.
+
+**Writing is supported on Heidenhain only** (`SetOverrideSpeed`; the other controls answer status `-20` (not supported)). Write a whole percentage, as in `{"value": 80}`. A value whose fractional part is `0` (`80.0`) is accepted; a value with a fractional part such as `50.5`, or a negative value, is status `-16` (invalid write value). The machine decides the range it accepts, and **in our test environment the control clamped a value outside that range to the nearest end and answered status `0`** (in our test environment the range for the spindle was from `50` to `130`, so writing `0` set `50` and writing `200` set `130`). The TNC7 User's Manual ('Cutting data') gives the spindle override potentiometer a range of 0% to 150% (effective only on machines with an infinitely variable spindle drive) and says that the maximum spindle speed depends on the machine. Read the value back to see what was set. In our test environment a written value took about 0.1 s to show up in a read, so a read right after the write could still return the previous value. There is a single spindle override, so writing through any `spindle` changes that one value. A written value takes effect during automatic operation as well and stays after the run ends. Operating the override on the operator panel sets the panel's value, and writing again sets the written one (whichever changed last; confirmed with the virtual dial in our test environment, not with the dial of a real machine). **Write caution**: the spindle speed of a running machine changes at once.
 
 ## /machine/channel/spindle/spindleSpeedCommanded
 ```yaml
 value_type: "float"
 null_able: false
 required_filters: ["channel", "spindle"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
-The spindle **S command value**. Returns `float`. **No `unit` is attached**: what the command means depends on the spindle speed mode (a rotational speed under constant-speed mode, a surface speed under constant-surface-speed mode), and that holds on all three machine types. Which mode is active is `/machine/channel/gModalCategory/gModal?gModalCategory=8`: the response's `desc` carries the machine-independent meaning - `constant surface speed` means a surface speed (`G96`, on Siemens also `G961`/`G962`), `constant spindle speed (rpm)` means a rotational speed (`G97`, on Siemens also `G971`/`G972`/`G973` and `G94`/`G95` from the same group). **Fanuc is the channel modal S value** (the `spindle` filter is ignored; the S command is a channel-level concept); Siemens is the per-spindle `cmdSpeed`, and Mitsubishi the per-spindle S command modal value. **On Siemens the sign follows the direction of rotation** (negative under `M4`, 840D sl bench); Fanuc reads positive under both `M3` and `M4` (31i bench); we have not confirmed Mitsubishi.
+The spindle **S command value**. Returns `float`. **No `unit` is attached**: what the command means depends on the spindle speed mode (a rotational speed under constant-speed mode, a surface speed under constant-surface-speed mode). That holds on Fanuc, Siemens and Mitsubishi; Heidenhain answers status `-22` instead of a value under constant surface speed (see below). Which mode is active is `/machine/channel/gModalCategory/gModal?gModalCategory=8`: the response's `desc` carries the machine-independent meaning - `constant surface speed` means a surface speed (`G96`, on Siemens also `G961`/`G962`), `constant spindle speed (rpm)` means a rotational speed (`G97`, on Siemens also `G971`/`G972`/`G973` and `G94`/`G95` from the same group). **Fanuc is the channel modal S value** (the `spindle` filter is ignored; the S command is a channel-level concept); Siemens is the per-spindle `cmdSpeed`, and Mitsubishi the per-spindle S command modal value. **On Siemens the sign follows the direction of rotation** (negative under `M4`, 840D sl bench); Fanuc reads positive under both `M3` and `M4` (31i bench); we have not confirmed Mitsubishi.
 
 This address was previously named `/machine/channel/spindle/speedCommanded`; the old address keeps working as-is, but the documentation describes only this name.
+
+**Heidenhain** reads, as PLC data, the programmed S value the basic PLC program receives. It is the last S commanded even while the spindle is stopped, and it equalled the S of the control's status line (in our test environment, the TNC7 programming station, with a rotational speed command). **When the spindle's last command is a constant surface speed it answers status `-22`**: the speed follows the diameter, so there is no commanded speed, and the error text carries the cutting speed. Read the speed meanwhile with `/machine/channel/spindle/spindleSpeedActual`. In our test environment constant surface speed applied only to the turning spindle in turning mode, and after returning to milling mode that spindle still answered status `-22` because its last command stays. A cutting speed given in a milling tool call (`TOOL CALL 3 Z S(VC=100)`) is turned into a spindle speed when the tool is called, so it is not constant surface speed and this address gives that speed (with a 6 mm tool in our test environment the panel showed S `5305` and this address `5305.165`). It is PLC data, so the connection needs `access_password`; when it is missing or the control rejects it, the status is `-20`. If deemesh finds none of the symbol names it knows for this value on the machine, the status is also `-20`. Symbol names can differ between machines' PLC programs; if you know the name that holds this value on that machine, read it with `/machine/plcAddress/plcType/plcValue`. The `spindle` number follows the control's spindle list and does not depend on the operating mode (`/machine/channel/spindleCount`).
 
 ## /machine/channel/spindle/spindleSpeedActual
 ```yaml
 value_type: "float"
 null_able: false
 required_filters: ["channel", "spindle"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
-The per-spindle actual speed. Returns `float` + `unit:"rpm"` on all three protocols: Fanuc uses `cnc_acts2`, Siemens the per-spindle `actSpeed`, and Mitsubishi the speed item of the spindle monitor. All three specify the target spindle with the `spindle` filter, and the value is the **measured speed with override applied**. **On Siemens the sign follows the direction of rotation** (the System Variables List Manual defines the sign of `$AA_S` that way; on an 840D sl bench `M4` read negative); Fanuc gives the magnitude whatever the direction (both `M3` and `M4` read positive on a 31i bench and on a machine tool); we have not confirmed the sign convention of Mitsubishi.
+The per-spindle actual speed. Returns `float` + `unit:"rpm"` on all four protocols: Fanuc uses `cnc_acts2`, Siemens the per-spindle `actSpeed`, and Mitsubishi the speed item of the spindle monitor. All three specify the target spindle with the `spindle` filter, and the value is the **measured speed with override applied**. **On Siemens the sign follows the direction of rotation** (the System Variables List Manual defines the sign of `$AA_S` that way; on an 840D sl bench `M4` read negative); Fanuc gives the magnitude whatever the direction (both `M3` and `M4` read positive on a 31i bench and on a machine tool); we have not confirmed the sign convention of Mitsubishi.
 
 **The Mitsubishi value has not been confirmed on a machine tool.** In our test environment (a simulator) we confirmed only that it can be read; the value was always `0`, even while the spindle turned.
 
 This address was previously named `/machine/channel/spindle/speedActual`; the old address keeps working as-is, but the documentation describes only this name.
+
+**Heidenhain** reads, as PLC data, the actual speed the basic PLC program reads from the drive. It is a magnitude without direction, and it equalled the S of the control's status line and the speed in the drive diagnosis table (in our test environment, the TNC7 programming station). It is PLC data, so the connection needs `access_password`; when it is missing or the control rejects it, the status is `-20`. If deemesh finds none of the symbol names it knows for this value on the machine, the status is also `-20`. Symbol names can differ between machines' PLC programs; if you know the name that holds this value on that machine, read it with `/machine/plcAddress/plcType/plcValue`. The `spindle` number follows the control's spindle list and does not depend on the operating mode (`/machine/channel/spindleCount`).
 
 ## /machine/channel/spindle/spindleLoad
 ```yaml
 value_type: "float"
 null_able: false
 required_filters: ["channel", "spindle"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
-The spindle load rate. Returns `float` + `unit`. Siemens and Mitsubishi always carry `unit:"%"`. On Fanuc the vendor response carries the unit itself, so `%` or `rpm` arrives depending on the machine configuration, and in the rare case the vendor reports some other unit code the `unit` key is omitted. Do not assume `%`; read `unit`. On Mitsubishi this is the load item of the spindle monitor.
+The spindle load rate. Returns `float` + `unit`. Siemens, Mitsubishi and Heidenhain always carry `unit:"%"`. On Fanuc the vendor response carries the unit itself, so `%` or `rpm` arrives depending on the machine configuration, and in the rare case the vendor reports some other unit code the `unit` key is omitted. Do not assume `%`; read `unit`. On Mitsubishi this is the load item of the spindle monitor.
 
 **When `unit` is `%` this is the same physical quantity as `spindleCurrent`** - the control divides the motor current by its rating to produce a load rate. That makes it comparable across machines (80% means 80% anywhere), while `spindleCurrent` gives you the absolute figure. Converting between the two needs that motor's rated current, which deemesh does not expose, so **on a control that supports only one of them, the other cannot be derived**. When Fanuc reports `unit:"rpm"` the value is a speed rather than a load and this relationship does not hold.
 
 **The Mitsubishi value has not been confirmed on a machine tool.** In our test environment (a simulator) we confirmed only that it can be read; the value was always `0`, even while the spindle turned.
+
+**Heidenhain** reads, as PLC data, the motor utilization the basic PLC program reads from the drive. It is the value the control's drive diagnosis table shows as Utilization [%]. In our test environment (the TNC7 programming station) the PLC program puts fixed values there instead of the drive's, so what was confirmed is that the value equals the control's drive diagnosis table; values from a real drive have not been confirmed. It is PLC data, so the connection needs `access_password`; when it is missing or the control rejects it, the status is `-20`. If deemesh finds none of the symbol names it knows for this value on the machine, the status is also `-20`. Symbol names can differ between machines' PLC programs; if you know the name that holds this value on that machine, read it with `/machine/plcAddress/plcType/plcValue`. The `spindle` number follows the control's spindle list and does not depend on the operating mode (`/machine/channel/spindleCount`).
 
 ## /machine/channel/spindle/spindleCurrent
 ```yaml
@@ -1098,15 +1179,17 @@ The spindle motor current. **Siemens only** (drive parameter `R0078`). Returns `
 value_type: "float"
 null_able: false
 required_filters: ["channel", "spindle"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
-The spindle motor temperature. Returns `float` + `unit:"°C"` (identical on all three). For Fanuc this is diagnosis 403; for Siemens the drive parameter `R0035`; for Mitsubishi the motor temperature of the spindle drive monitor.
+The spindle motor temperature. Returns `float` + `unit:"°C"` (identical on all four). For Fanuc this is diagnosis 403; for Siemens the drive parameter `R0035`; for Mitsubishi the motor temperature of the spindle drive monitor.
 
 **Siemens**: the value comes from the drive, so on a channel whose spindle has no drive assigned this is status `-20`, a property of the machine's configuration, not a fault.
 
 **The Mitsubishi value has not been confirmed on a machine tool.** In our test environment (a simulator) we confirmed only that it can be read; the value was always `0`.
+
+**Heidenhain** reads, as PLC data, the motor temperature the basic PLC program reads from the drive. It is the value the control's drive diagnosis table shows as Temperature [°C]. In our test environment (the TNC7 programming station) the PLC program puts fixed values there instead of the drive's, so what was confirmed is that the value equals the control's drive diagnosis table; values from a real drive have not been confirmed. It is PLC data, so the connection needs `access_password`; when it is missing or the control rejects it, the status is `-20`. If deemesh finds none of the symbol names it knows for this value on the machine, the status is also `-20`. Symbol names can differ between machines' PLC programs; if you know the name that holds this value on that machine, read it with `/machine/plcAddress/plcType/plcValue`. The `spindle` number follows the control's spindle list and does not depend on the operating mode (`/machine/channel/spindleCount`).
 
 ## /machine/channel/spindle/spindlePower
 ```yaml
@@ -1170,27 +1253,58 @@ Energy (Wh) is not power (W): W is an instantaneous rate, Wh is an accumulated a
 
 **Fanuc only** (diagnosis 4932). Siemens has no cumulative energy counter among the nodes deemesh reads, so status `-20` (instantaneous power is `spindlePower`). Mitsubishi answers status `-20`.
 
+## /machine/channel/activeWorkOffset
+```yaml
+value_type: "string"
+null_able: false
+required_filters: ["channel"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
+write: []
+```
+
+Returns **the work coordinate system selected now**, in the notation that machine's `workOffset` filter takes. Returns `string`; read only. Put the value as it is into the `workOffset` filter of `/machine/channel/workOffset/axis/workOffsetValue` to read that work coordinate system's offset.
+
+The values by control:
+
+- **Fanuc**: `G54`–`G59`, and an additional work coordinate system with its P number, as in `G54.1P2`. The P number is read from the custom macro system variable `#4330` (the additional work coordinate system number of the block being executed, Operator's Manual B-64484EN §16). `EXT` is the common offset added to every coordinate system, so it never appears. On a control where `#4330` cannot be read because it has no custom macro option, the P number is unknown: when the control reports the additional work coordinate system as `G54` (as our simulator and a 31i-B machine tool did), `G54` comes out even while an additional work coordinate system is in effect, and when it reports `G54.1` the read answers status `-22` (machine state). All our test machines have that option, so this case is not confirmed
+- **Mitsubishi**: `G54`–`G59`. **While `G54.1` is in effect the read answers status `-22` (machine state).** We have not confirmed a way to read which extended work coordinate system it is (the P number) with the EZSocket reference we have. That `G54.1` is in effect is answered by `/machine/channel/gModalCategory/gModal?gModalCategory=7` (confirmed on the simulator in both a machining-centre and a lathe configuration: with `G54.1 P2` in effect we saw this refusal and that `G54.1`). A configuration that is neither machining centre nor lathe (`machineType` = `unknown`) returns status `-20`
+- **Siemens**: the settable frames `G500`, `G54`–`G57`, `G505`–`G599`. `G500` is the state with the settable offset switched off, and the `workOffset` filter takes that notation too
+- **Heidenhain**: the number of the active preset (`0`, `1` …), the row marked active in the preset table (confirmed in our test environment: it followed when the preset was changed; the TNC7 User's Manual, 'Preset table', says the control enters `1` in the `ACTNO` column of the active row). It is a number rather than a G code because the Heidenhain `workOffset` filter takes the preset number
+
+⚠️ **This address only says which work coordinate system is selected.** It does not mean that offset is what reaches the coordinates now: on Fanuc and Mitsubishi `EXT` is added, on Siemens the old value stays in effect after a table edit until the next activation (`totalWorkOffsetValue`), and on Heidenhain the old value stays in effect after a table edit until the preset is activated again, an axis whose preset cell is empty keeps the offset it had before, and a datum shift from the datum table or `TRANS DATUM` and (depending on the machine) a pallet preset can be added on top. If you need workpiece coordinates, read `/machine/channel/axis/workPosition`.
+
+**How it differs from `gModalCategory=7`**: on the G-code controls both look at the same modal. While an additional work coordinate system is in effect that address answers `G54.1`, and on Fanuc this address adds the P number (`G54.1P2`) so the value can go back into the filter (Mitsubishi answers status `-22` as above, and Siemens has no `G54.1`). This address answers on Heidenhain as well.
+
+On Fanuc the value follows **the block being executed**. When a block read ahead changes the work coordinate system, the previous value holds until that block runs.
+
+Range expansion (`channel=1-2`) is supported. Each channel selects on its own, so the channels can answer differently (on the 840D sl bench, channel 1 `G54` and channel 2 `G500`).
+
 ## /machine/channel/workOffset/axis/workOffsetValue
 ```yaml
 value_type: "float"
-null_able: false
+null_able: true
 required_filters: ["channel", "workOffset", "axis"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: ["nc_focas2_fanuc", "nc_ezsocket_mitsubishi"]
 ```
 
 **Work coordinate system offset**: the per-axis offset distance of a work coordinate system such as G54 (read + write). Returns `float`, a real distance (in the machine's configured unit mm/inch as-is; the SDK normalizes Fanuc's internal integer representation by the decimal scaling).
 
-The `workOffset` filter **takes the shop-floor G-code notation directly** (an open namespace like `plcAddress`, no separate numbering system). Case-insensitive; whitespace and aliases are not allowed:
+The `workOffset` filter **takes the shop-floor notation directly**: the G-code notation on the G-code controls, the preset number on Heidenhain (an open namespace like `plcAddress`, no separate numbering system). Case-insensitive; whitespace and aliases are not allowed:
 
-- **Fanuc and Mitsubishi**: `EXT` (the common offset added to all coordinate systems, the operator-panel EXT row), `G54`–`G59`, extended `G54.1P1`–`G54.1P300` (a P number not in the option returns a vendor error). The two accept **the same notation and reject with the same message**
+- **Fanuc and Mitsubishi**: `EXT` (the common offset added to all coordinate systems, the operator-panel EXT row), `G54`–`G59`, extended `G54.1P1`–`G54.1P300`. Fanuc rejects a P number not in the option with a vendor error. Mitsubishi can answer status `0` with the value `0` for a number beyond the option too (confirmed on the simulator: in a lathe configuration with the 48-set extended work coordinate system option, a program was refused at `G54.1 P49`, yet this address answered the value `0` for `G54.1P49`–`G54.1P96`, and status `-17` (vendor error) from `G54.1P97` on). To see how many sets a machine has, check the option list on the operator panel's diagnosis screen (on the simulator the number of sets appeared in that list). The two accept **the same notation and reject with the same message**
 - **Siemens**: `G500`, `G54`–`G57`, `G505`–`G599`. How many actually exist depends on the machine configuration, so a designator that does not exist answers with status `-18` together with **the list this machine accepts**
+- **Heidenhain**: the preset table number (`0`, `1` …, the row number of the preset table on the operator panel). G-code notation is rejected with status `-18` (filter value error), and a number that is not in the table answers status `-18` together with **the range of numbers the table has**
 
-⚠️ **`G500` is not the same as Fanuc's `EXT`.** `EXT` is a common offset that is **added on top** of whichever `G5x` is active, whereas `G500` is an **exclusive member of the same modal group** as `G54`–`G57` and therefore cannot be active alongside them; when `G500` is in effect the settable offset is switched off, and the value in that slot is normally `0`. Read `/machine/channel/gModalCategory/gModal?gModalCategory=7` to see which one is active. On Siemens the part that adds to every coordinate system the way `EXT` does lives in **separate frames** (the `Basic reference` and `Total basic WO` rows on the operator panel), and deemesh does not expose those individually; for the combined result, read `/machine/channel/axis/totalWorkOffsetValue`.
+⚠️ **`G500` is not the same as Fanuc's `EXT`.** `EXT` is a common offset that is **added on top** of whichever `G5x` is active, whereas `G500` is an **exclusive member of the same modal group** as `G54`–`G57` and therefore cannot be active alongside them; when `G500` is in effect the settable offset is switched off, and the value in that slot is normally `0`. Read `/machine/channel/activeWorkOffset` to see which one is selected (its value goes into `workOffset` as it is). On Siemens the part that adds to every coordinate system the way `EXT` does lives in **separate frames** (the `Basic reference` and `Total basic WO` rows on the operator panel), and deemesh does not expose those individually; for the combined result, read `/machine/channel/axis/totalWorkOffsetValue`.
 
-**On Siemens the value is the coarse offset plus the fine offset.** The machine applies that sum and the operator panel shows them as two cells of one offset (`Coarse` and `Fine`), so this address gives you **the offset actually in effect**; comparing it against the panel's `Coarse` cell alone can look like a mismatch. To read the fine part on its own, use `/machine/channel/workOffset/axis/workOffsetFineValue`. Fanuc and Mitsubishi have no fine offset, so their value is single; that is what makes this address mean the same thing on all three machine types.
+**On Siemens the value is the coarse offset plus the fine offset.** The machine applies that sum and the operator panel shows them as two cells of one offset (`Coarse` and `Fine`), so this address gives you **the offset actually in effect**; comparing it against the panel's `Coarse` cell alone can look like a mismatch. To read the fine part on its own, use `/machine/channel/workOffset/axis/workOffsetFineValue`. Fanuc and Mitsubishi have no fine offset, so their value is single; that is what makes this address mean the same thing on Fanuc, Mitsubishi and Siemens (Heidenhain in the next paragraph).
 
-⚠️ **This value is the stored translation.** Two more things bear on it. ① A work coordinate system can also carry **rotation, scaling and mirroring** (`workOffsetRotation`, `workOffsetScale`, `workOffsetMirrorOn`), and where those are set the coordinate transform is not determined by this value alone. ② The total actually in effect can differ from this value, because a basic reference and other frames add to it (`totalWorkOffsetValue`; Siemens only, and that section explains how to get the offset in effect on Fanuc and Mitsubishi). If you need part coordinates, do not compute them; read `/machine/channel/axis/workPosition`. On an ordinary setup that only translates, rotation is `0`, scaling is `1` and mirroring is `false`, so this value *is* the transform.
+**On Heidenhain the value is a cell of the preset table.** For the X, Y and Z axes it is the basic transformation cell (`X`, `Y`, `Z`); for any other axis it is that axis's offset cell (the axis name followed by `_OFFS`, as in `A_OFFS`). The offset cells of the X, Y and Z axes (`X_OFFS`, `Y_OFFS`, `Z_OFFS`) are not included: the basic transformation is a value in the basic coordinate system, while an offset cell shifts that axis in the machine coordinate system, and how the two act together depends on the machine kinematics, so deemesh does not add them into one value (TNC7 User's Manual, 'Preset table'). If deemesh does not find that axis's cell in the preset table, the status is `-20` (not supported). The preset's rotation (`SPA`, `SPB`, `SPC`, the spatial angles that set the basic rotation of the workpiece coordinate system) is not part of this value; `workOffsetRotation` reports it. This value is what the preset table holds; during machining a datum shift from the datum table or `TRANS DATUM` and (depending on the machine) a pallet preset can be added on top of it (manual, 'Preset table' and 'Datum table').
+
+**On Heidenhain an empty cell is `null`.** The preset table allows empty cells, and an empty cell does not mean `0`: it means **this preset does not set that axis**. Activating such a preset left that axis at the offset already in effect (confirmed in our test environment: activating a preset whose X, Y and Z were all empty did not change the workpiece coordinates; the TNC7 User's Manual, 'Preset table', also says an empty cell keeps the previous value on activation while a cell holding `0` overwrites it). This address therefore cannot tell you what is in effect on that axis; read `workPosition` for the coordinates. A single read carries this explanation in `desc`. Fanuc, Mitsubishi and Siemens have a number in every cell and never produce `null` here.
+
+⚠️ **This value is the stored translation.** Two more things bear on it. ① A work coordinate system can also carry **rotation, scaling and mirroring** (`workOffsetRotation`, `workOffsetScale`, `workOffsetMirrorOn`), and where those are set the coordinate transform is not determined by this value alone. ② The total actually in effect can differ from this value, because a basic reference and other frames add to it (`totalWorkOffsetValue`; Siemens only, and that section explains how to get the offset in effect on the other controls). If you need part coordinates, do not compute them; read `/machine/channel/axis/workPosition`. On an ordinary setup that only translates, rotation is `0`, scaling is `1` and mirroring is `false`, so this value *is* the transform.
 
 **Whether the table can be edited during automatic operation, and when an edit reaches the coordinates, differ by control.** This address is the stored value, so it reports a panel edit **at once**.
 
@@ -1199,16 +1313,17 @@ The `workOffset` filter **takes the shop-floor G-code notation directly** (an op
 | Fanuc | Allowed | Reflected in `workPosition` at once (confirmed on the simulator and a 31i bench) |
 | Siemens | Allowed (at the panel) | Not until the next activation (programming G500 or G54 to G599, or a restart after reset); the table is copied into the channel's active frame at that moment (Basic Functions K2; confirmed on the test bench). `totalWorkOffsetValue` reports what is in effect now |
 | Mitsubishi | Refused by the control during automatic operation: a write to this address answers status `-22`, and the panel shows "Executing automatic operation" (confirmed on the simulator; the same with the tool compensation parameter `#11017` set to `1`) | A value changed at the panel during automatic operation is valid from the next block or after several subsequent blocks (Instruction Manual) |
+| Heidenhain | Not confirmed | Not until the preset is activated again (confirmed in our test environment by editing a cell of the active preset); activating it applies the table values, and an axis whose cell is empty stays as it was |
 
 On Siemens, the time the two addresses differ is exactly the "changed but not yet applied" state; a coordinate-watching app should not treat it as a fault.
 
-`axis` is the axis number (1–). All three controls take the axis name as well (the name `/machine/channel/axis/axisName` returns, letter case ignored). `axis=1-3` · `workOffset=G54,G55` expansion is supported; for Fanuc, axis expansion of the same workOffset is bundled into a single FOCAS call.
+`axis` is the axis number (1–). All four controls take the axis name as well (the name `/machine/channel/axis/axisName` returns, letter case ignored). `axis=1-3` · `workOffset=G54,G55` expansion is supported; for Fanuc, axis expansion of the same workOffset is bundled into a single FOCAS call. Heidenhain expands a number range such as `workOffset=0-24` and answers all the presets and axes of one request from a single read of the table.
 
-Writes take `{"value": 25.4}` (a single axis). **Supported on Fanuc and Mitsubishi. On Siemens the write answers status `-20`, and that is a deliberate exclusion, not something unimplemented.** The node holding this value is read/write in the vendor variable manual (`$P_UIFR`), but the same manual states that **the PI service `SETUFR` has to be called to activate the settable frames** (NC Variables List Manual, Area C Block FU). deemesh does not call that service over OPC-UA (the methods we found under the server's `/Methods` are for file handling and tool management), so writing the value alone is accepted while the offset actually in effect and the operator panel display both stay as they were (observed on our test bench). A write that looks like it succeeded and does nothing is exactly what deemesh refuses to pass through. To change an offset on Siemens, set it at the operator panel.
+Writes take `{"value": 25.4}` (a single axis). **Supported on Fanuc and Mitsubishi. On Siemens the write answers status `-20`, and that is a deliberate exclusion, not something unimplemented.** The node holding this value is read/write in the vendor variable manual (`$P_UIFR`), but the same manual states that **the PI service `SETUFR` has to be called to activate the settable frames** (NC Variables List Manual, Area C Block FU). deemesh does not call that service over OPC-UA (the methods we found under the server's `/Methods` are for file handling and tool management), so writing the value alone is accepted while the offset actually in effect and the operator panel display both stay as they were (observed on our test bench). A write that looks like it succeeded and does nothing is exactly what deemesh refuses to pass through. To change an offset on Siemens, set it at the operator panel. **Heidenhain answers status `-20` too.** A value written to the preset table reaches the coordinates only when the preset is activated again (table above), and deemesh does not activate presets, so for the same reason as Siemens it does not accept the write. Set the offset at the operator panel.
 
 **Fanuc and Mitsubishi round a written value to that axis's decimal places and answer status `0`.** On Fanuc deemesh rounds to the axis's decimal places before sending; on Mitsubishi the setting unit parameter `#1003` decides those places (in our test environment a 1 µm setting stored `12.345678` as `12.346`, and a 1 nm setting stored it unchanged). Read the value back to see what was stored. On Mitsubishi, a value the control does not accept (outside its setting range) answers status `-16`. While data protect key 1 (PLC signal `*KEY1`, `Y708`, which protects tool data and coordinate data) is off, the write answers status `-22` (machine state); turn the key on and write again (confirmed on the simulator; deemesh tells this case apart by reading that signal after the refusal).
 
-The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address.
+The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address. **Fanuc fixes the decimal places of this value at connect, so reconnect after changing a unit setting such as `G20`/`G21`** (in the SDK `deemesh_disconnect` then `deemesh_connect`; on the hub `POST /admin/reload`). Until then it is read and written with the old decimal places and can be off by a factor of 10. Unlike this rule, Heidenhain linear axes are always in mm (deemesh selects mm when it reads through DNC).
 
 ## /machine/channel/workOffset/axis/workOffsetFineValue
 ```yaml
@@ -1236,7 +1351,7 @@ On a machine that does not use fine offsets (or has them switched off in machine
 value_type: "float"
 null_able: false
 required_filters: ["channel", "workOffset", "axis"]
-read: ["nc_opcua_siemens"]
+read: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
 write: []
 ```
 
@@ -1246,9 +1361,11 @@ The **per-axis rotation angle** of a work coordinate system. Filters are the sam
 
 **These three are components of the same coordinate frame as the translation.** The actual coordinate transform is translation + rotation + scale + mirror, so computing part coordinates means reading all five; on an ordinary setup that only translates, rotation is `0`, scale is `1` and mirror is `false`, so `workOffsetValue` alone is enough.
 
-**Writing is not supported.** Writing to these values directly makes the machine **accept the request and change nothing** (measured). A separate activation step is required on the machine side, and deemesh does not call it; make changes at the operator panel. The translation (`workOffsetValue` and `workOffsetFineValue`) is status `-20` on Siemens for the same reason.
+**On Heidenhain the value is a spatial-angle cell of the preset table.** The X axis is `SPA`, the Y axis `SPB` and the Z axis `SPC`, each the angle of rotation around that axis. The TNC7 User's Manual, 'Preset table', says the control interprets these three as a basic rotation (when only `SPC` is used) or a 3D basic rotation of the workpiece coordinate system. The order and sign of the rotations are the same as the Siemens default setting (machine datum `10600` `$MN_FRAME_ANGLE_INPUT_MODE` at `1`, RPY angles), so the same three values mean the same rotation: around the fixed axes in the order X, Y, Z (the TNC7 User's Manual, 'PLANE SPATIAL', describes the spatial angles as rotations in the order A, B, C, and Basic Functions K2 gives RPY angles in the order Z, Y', X''; confirmed in our test environment by entering values in the three cells, activating the preset and comparing against `workPosition`). On a Siemens machine with machine datum `10600` at `2` (ZX'Z'' Euler angles) the same three values mean a different rotation. Any other axis (a rotary axis such as `A` or `C`) answers status `-18`. The offset cell of a rotary axis (`A_OFFS` and so on) is not a rotation but a shift of that axis, and `workOffsetValue` reports it. This is the value written in the table, so after the table is edited it can differ from the rotation in effect until the preset is activated again.
 
-**Siemens only.**
+**Writing is not supported** (status `-20`). On Siemens, writing to these values directly makes the machine **accept the request and change nothing** (confirmed on our test bench). A separate activation step is required on the machine side, and deemesh does not call it. On Heidenhain too, a value written to the preset table takes effect only when the preset is activated again, and deemesh does not activate presets. Make changes at the operator panel. The translation `workOffsetValue` answers status `-20` to a write on both controls for the same reason (on Siemens, `workOffsetFineValue` as well).
+
+**Readable on Siemens and Heidenhain.**
 
 **Fanuc and Mitsubishi answer with status `-20`.** Their work offset tables store translation only (`workOffsetValue`).
 
@@ -1301,6 +1418,7 @@ null_able: true
 required_filters: ["channel", "gModalCategory"]
 read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
 write: []
+filter_codes: {"gModalCategory": [{"value": 1, "name": "motion"}, {"value": 2, "name": "plane"}, {"value": 3, "name": "distanceMode"}, {"value": 4, "name": "units"}, {"value": 5, "name": "feedMode"}, {"value": 6, "name": "cutterComp"}, {"value": 7, "name": "coordinateSystem"}, {"value": 8, "name": "spindleSpeedMode"}]}
 ```
 
 Queries the active G modal by a **machine-independent standard group number** (a vendor-neutral number defined by deemesh like `plcType`, not the vendor's raw group number). `gModalCategory` filter values:
@@ -1313,7 +1431,7 @@ Queries the active G modal by a **machine-independent standard group number** (a
 - `4` = units: inch/metric (G20·G70·G700 / G21·G71·G710). On Siemens, `G70`/`G71` switch coordinates only, `G700`/`G710` also feedrates and offsets (Programming Manual)
 - `5` = feedMode: feed specification (per-minute/per-rev/inverse-time)
 - `6` = cutterComp: tool-radius compensation (G40 cancel / G41 left / G42 right)
-- `7` = coordinateSystem: work coordinate system (G54–G59)
+- `7` = coordinateSystem: work coordinate system. On Fanuc and Mitsubishi G54–G59, and `G54.1` for an additional work coordinate system (confirmed for Fanuc on the simulator and on a 31i-B machine tool, and for Mitsubishi on the simulator). On a Fanuc control that cannot read the additional work coordinate system number (`#4330`) because it has no custom macro option, an additional work coordinate system can come out as `G54`. On Siemens `G500`, `G54`–`G57`, `G505`–`G599`. For which additional work coordinate system it is (the P number), read `/machine/channel/activeWorkOffset`
 - `8` = spindleSpeedMode: constant surface speed (G96) / constant rpm (G97)
 
 The value is that machine's G-code string, plus for key combinations a machine-independent meaning in `desc` (e.g. Fanuc `{"value":"G21","desc":"metric"}`, Siemens `{"value":"G710","desc":"metric"}`). For access to the raw vendor groups, use `gModalGroup/gModal` (one group) or `gModalList` (all). When no modal is in effect for that group (including combinations the machine type does not support), the value is `null`, the same representation as that slot of `gModalList`. On Mitsubishi a group the control refuses reads `null`, while a communication error answers an error, not `null`. **On Siemens, `feedMode` (`5`) and `spindleSpeedMode` (`8`) are the same group, so their values are always identical.** SINUMERIK puts the feed types (`G93`, `G94`, `G95`) and the spindle-speed types (`G96`, `G97`) in one G group, so only one value is ever active and only `desc` distinguishes which question you asked:
@@ -1341,7 +1459,7 @@ write: []
 
 Reads **one slot of `gModalList`, picked by group number** (`string`). The `gModalGroup` filter takes **the group number that control's communication interface uses**, in the same numbering as the array positions of `gModalList`:
 
-- **Fanuc**: the number FOCAS uses, `0`-`36` (the `type` of `cnc_rdgcode`)
+- **Fanuc**: the number FOCAS uses, `0`-`36` (the `type` of `cnc_rdgcode`). The value is what FOCAS reports, so while an additional work coordinate system (`G54.1`) is in effect the work coordinate system group can arrive as `G54` (confirmed on NC Guide; the neutral category `gModalCategory=7` answers `G54.1`)
 - **Siemens**: G-function groups `1`-`N` (N = the machine's group count; `64` on a measured 840D sl)
 - **Mitsubishi**: the vendor API's group numbers, `1`-`21`
 
@@ -1366,7 +1484,7 @@ Returns the **full list of modal G codes reported by the machine in vendor order
 
 ⚠️ **Elements can be `null`**, on every machine type. It means no modal is in effect in that slot, or the machine does not have that group. Code that expects a string will break on it, so check each element.
 
-- **Fanuc**: FOCAS group order `0`-`36`, so **the length is always 37**. Groups the machine does not have read `null` (measured on a 31i: 34 arrive and `24`, `25`, `28` are empty). **On a control where `cnc_rdgcode` cannot be used, everything from `21` on is `null`**: the fallback (`cnc_modal`) covers only G code groups `0` to `20` per the FOCAS2 specification
+- **Fanuc**: FOCAS group order `0`-`36`, so **the length is always 37**. Groups the machine does not have read `null` (measured on a 31i: 34 arrive and `24`, `25`, `28` are empty). **On a control where `cnc_rdgcode` cannot be used, everything from `21` on is `null`**: the fallback (`cnc_modal`) covers only G code groups `0` to `20` per the FOCAS2 specification. While an additional work coordinate system (`G54.1`) is in effect, the work coordinate system group can still arrive as `G54` (the value FOCAS reports, as it is; confirmed on NC Guide). The neutral category `/machine/channel/gModalCategory/gModal?gModalCategory=7` answers `G54.1` then
 - **Siemens**: `ncFkt` G-function group order 1–N (N = the machine's group count). A group with no G function in effect reads `null` (measured: 7 of 64)
 - **Mitsubishi**: vendor group order 1–21 (`GetGCodeCommand`). **The length is always 21**; a group the machine does not have, or one with no modal in effect, reads `null`. A communication error is not filled in as `null`: when one occurs partway, the whole list answers the error. Codes are formatted as the vendor manual's examples show, with a two-digit integer part (`G02`, `G50.2`), so they look the same as Fanuc's
 
@@ -1428,7 +1546,7 @@ read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
 write: ["nc_focas2_fanuc", "nc_opcua_siemens"]
 ```
 
-The number of parts machined so far, the counter you reset when switching jobs. `channel` filter. Returns `int`; both read and write are supported; write `{"value": 0}` to reset it. If the Fanuc library does not include the function this write uses (`cnc_wrparam`), the write is status `-20` (as with the Linux library and one of the Windows libraries we checked; which functions a Fanuc library includes depends on the package).
+The number of parts machined so far, the counter you reset when switching jobs. `channel` filter. Returns `int`; both read and write are supported; write `{"value": 0}` to reset it. If the Fanuc library does not include the function this write uses (`cnc_wrparam`), the write is status `-20` (which functions a Fanuc library includes depends on the package).
 
 **This is not "how many parts were actually produced".** It is a counter the control increments in response to program end (`M02`/`M30`), and whether it reacts at all depends on the machine configuration. With that setting off it never moves; a dry run increments it too; running the same program twice makes it 2. An operator can change it at the panel. **The control does not know whether a part is good.** To use it for production reporting, the host application must overlay program and timing information.
 
@@ -1445,7 +1563,7 @@ read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
 write: ["nc_focas2_fanuc", "nc_opcua_siemens"]
 ```
 
-The target quantity to be produced. `channel` filter. Returns `int`; both read and write are supported; write `{"value": 100}`. A `0` means no target is set. If the Fanuc library does not include the function this write uses (`cnc_wrparam`), the write is status `-20` (as with the Linux library and one of the Windows libraries we checked; which functions a Fanuc library includes depends on the package).
+The target quantity to be produced. `channel` filter. Returns `int`; both read and write are supported; write `{"value": 100}`. A `0` means no target is set. If the Fanuc library does not include the function this write uses (`cnc_wrparam`), the write is status `-20` (which functions a Fanuc library includes depends on the package).
 
 The machine can be configured to signal or stop once the machined quantity reaches this value, but whether it does so depends on the machine configuration; deemesh only carries the value.
 
@@ -1494,7 +1612,7 @@ Fanuc reads parameters `6758` (minutes) and `6757` (milliseconds below a minute)
 value_type: "int"
 null_able: false
 required_filters: ["channel"]
-read: ["nc_focas2_fanuc", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
@@ -1502,13 +1620,15 @@ write: []
 
 It is the counterpart to `programRunDuration`: that one measures **the current cycle**, this one the **life of the machine**. The `program` in that name is what marks its scope, so an address without that prefix accumulates, like `powerOnDuration` and `cuttingDuration`.
 
-**It does not count while held or stopped.** Time parked in feed hold is excluded on both controls (on Fanuc the parameter manual states that stop and hold time are not included, and our test environment and a 31i bench agree; Mitsubishi exposes separate counters that include and exclude hold, and this address uses the excluding one) - so a program left paused while nobody is at the machine does not register as operating time.
+**It does not count while held or stopped.** Time parked in feed hold is excluded on all three controls (on Fanuc the parameter manual states that stop and hold time are not included, and our test environment and a 31i bench agree; Mitsubishi exposes separate counters that include and exclude hold, and this address uses the excluding one; on Heidenhain our test environment did not count time stopped by NC stop or `M0`) - so a program left paused while nobody is at the machine does not register as operating time.
 
 Read together with `/machine/powerOnDuration` it gives you the ingredients for a utilization figure - how much of the powered-on time was actually spent running. It accumulates, so measure an interval by reading twice and subtracting.
 
 **Writing is not supported.** This is the machine's history; changing it makes production figures quietly wrong.
 
 Fanuc reads parameters `6752` (minutes) + `6751` (milliseconds below the minute) in a single call - this is the `RUN TIME` on the control's production screen - and Mitsubishi uses `GetStartTime`. That is the **`Auto strt` item of the control's integrated-time screen (automatic start time: accumulated from the cycle-start button to a feed hold, block stop or reset)**; the `Auto oper` item (automatic operation time: from start to `M02`/`M30` or reset, `GetRunTime`), which includes hold, is deliberately not used (M800 Instruction Manual). **The control stops accumulating at `59999:59:59`** (the same cap, and the same API-documentation caveat, as `powerOnDuration`).
+
+On Heidenhain it is `GetMachineRunningTime`, which the reference describes as the accumulated machining time since installation with a program running in Automatic or Single Block mode. It has **minute resolution**, so the value is always a multiple of 60. It was the same counter as "Program Run" under Machine times in the control's machine settings (`780` while that showed 00:13:31 in our test environment).
 
 **Siemens answers status `-20`** (deemesh does not provide this value there).
 
@@ -1542,7 +1662,7 @@ Fanuc sums parameters `6754` (minutes) and `6753` (milliseconds below a minute);
 value_type: "string"
 null_able: false
 required_filters: ["channel"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
@@ -1550,34 +1670,41 @@ The name of the **main program selected in the HMI**. Returns `string`, read-onl
 
 Sources: `cnc_pdf_rdmain` on Fanuc, `/Channel/ProgramInfo/selectedWorkPProg` on Siemens, and `GetProgramNumber2` (the selected main) on Mitsubishi.
 
+On Heidenhain it is the file name (with extension, without path) of the selected program from `GetExecutionPoint`. The TNC keeps a program per operating mode: in our test environment MDI mode reported the MDI program (`$mdi.h`; per the TNC7 User's Manual `$mdi_inch.h` in inch), and manual mode kept reporting the program chosen in program run.
+
+**With no program selected it is an empty string.** We confirmed this in our test environment on Fanuc (with the panel showing `No Program`), Mitsubishi (with the panel's program number field blank) and Heidenhain, and on an 840D sl bench for Siemens (with the panel's program field blank; the control then points at its default program `MPF0`, which deemesh does not report). On Fanuc in our test environment, deleting the selected main on the panel made the control select another program in the same folder at once, and the value became empty only after the folder's last program was deleted. In MDI mode Fanuc keeps reporting the selected main (confirmed in our test environment).
+
 ## /machine/channel/mainProgramPath
 ```yaml
 value_type: "string"
 null_able: false
 required_filters: ["channel"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
-write: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
+write: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 ```
 
-The full path of the **main program selected on the HMI** (the path form of `mainProgramName`). It does not change when execution descends into a subprogram.
+The full path of the **main program selected on the HMI** (the path form of `mainProgramName`). It does not change when execution descends into a subprogram. Heidenhain keeps a selected program per operating mode (see `mainProgramName`), so MDI mode reports the path of the MDI program, and after the selected program is deleted or renamed this value still names the old path (confirmed in our test environment).
+
+With no program selected it is an empty string (confirmed in our test environment on Fanuc and Mitsubishi; Heidenhain does the same; confirmed on an 840D sl bench for Siemens. For when Fanuc ends up with no program selected, see `mainProgramName`). In MDI mode Fanuc keeps reporting the selected main (confirmed in our test environment).
 
 **Writing selects the program**: it makes the program at that path the channel's main program (the one to be executed). The value is a path string: `{"value": "//CNC_MEM/USER/O0001"}`.
 
-- Path notation follows the machine: Fanuc `//CNC_MEM/USER/O0001` (data server: `//DATA_SV/...`), Siemens `//NC/Part programs/PART1.MPF` (the same notation `programPath` and `entryList` return; `Subprograms` and `Workpieces` likewise), Mitsubishi `//PRG/USER/O0001` (the notation below `ncMemoryRootPath`). NC file-system paths are vendor-specific and are not normalized, for the same reason as `plcAddress`
+- Path notation follows the machine: Fanuc `//CNC_MEM/USER/O0001` (data server: `//DATA_SV/...`), Siemens `//NC/Part programs/PART1.MPF` (the same notation `programPath` and `entryList` return; `Subprograms` and `Workpieces` likewise), Mitsubishi `//PRG/USER/O0001` (the notation below `ncMemoryRootPath`), Heidenhain `//TNC/nc_prog/PART1.H`. NC file-system paths are vendor-specific and are not normalized, for the same reason as `plcAddress`
 - **It must be a file**: passing a folder path returns status `-18`, as does a path that does not exist
 - Selecting does **not start machining** (cycle start remains the operator panel's / PLC's job)
 - **The control decides in which channel state a selection is accepted.** A refusal for that reason answers status `-22` (machine state), and the reason names the state. Per control:
   - Fanuc: per the FOCAS2 specification the selection function can be used only in MEM (auto) and EDIT mode, so any path answers status `-22` in other modes such as MDI or JOG. While automatic operation is started (`executionStatus` value `3`) any path answers status `-22` as well, including the program that is running. The same holds while the emergency stop is on: any path answers status `-22`, and the reason says so (confirmed on a 31i bench and in our test environment). Whether a stopped state such as block stop or feed hold accepts a selection is up to the machine; when it does, the selected program changes at once, so writing in the reset state is the safe choice. A path that does not exist answers status `-18` instead. A program in O8000 to O8999 or O9000 to O9999 protected by parameter `3202#0`/`#4` is not selected and answers status `-22` (lift the protection or choose another program). An edit-disable attribute set on the panel does not prevent selection (confirmed in our test environment)
   - Siemens: the channel must be in the Reset state (a precondition of the `Select` method); otherwise status `-22`
   - Mitsubishi: while a program is running the operation search is refused, status `-22`
-- Siemens calls the server's file-handling `Select` method, Fanuc uses `cnc_pdf_slctmain` for both CNC memory and data-server paths, and Mitsubishi uses the operation search `Search`. On a Fanuc data-server path, when the selection is refused for a reason other than the machine's state, deemesh tries setting the storage-mode DNC operation file (`cnc_wrdsdncfile`) and answers success only when that file reads back as the one it set
+  - Heidenhain: accepted in the Program Run operating mode only. Manual operation and MDI mode answer status `-22`, and so does a running program. While a run is stopped on a block boundary (`executionStatus` `1`) it is accepted, and the unfinished run is dropped (confirmed in our test environment; write it after the run has ended or been cancelled if the machining is to continue). A folder path, a path under a folder that does not exist and a file that does not exist all answer status `-18` (confirmed in our test environment)
+- Siemens calls the server's file-handling `Select` method, Fanuc uses `cnc_pdf_slctmain` for both CNC memory and data-server paths, Mitsubishi uses the operation search `Search`, and Heidenhain uses `SelectProgram`. On a Fanuc data-server path, when the selection is refused for a reason other than the machine's state, deemesh tries setting the storage-mode DNC operation file (`cnc_wrdsdncfile`) and answers success only when that file reads back as the one it set
 
 ## /machine/channel/programName
 ```yaml
 value_type: "string"
 null_able: false
 required_filters: ["channel"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
@@ -1587,16 +1714,22 @@ Sources: `cnc_exeprgname2` on Fanuc, `/Channel/ProgramInfo/workPandProgName` on 
 
 The notation follows the control. Fanuc gives the O number (`O0003`); Siemens gives the **file name with its extension** (`PART1.MPF`, and `SUB1.SPF` once a subprogram is entered) without a path (use `programPath` for the path); Mitsubishi gives the program file name (M700- and M800-series controls return the file name here; `GetProgramNumber2` in the reference IB-1501209).
 
+**With no program selected it is an empty string** (confirmed in our test environment on Fanuc and Mitsubishi; Heidenhain does the same; confirmed on an 840D sl bench for Siemens). On Fanuc, MDI mode gives `O0000` without a path (confirmed in our test environment).
+
+On Heidenhain it is the file name (with extension) of the last program in the call list from `GetExecutionPoint`; entering a subprogram gives that subprogram's name (confirmed in our test environment). With a program selected but not yet started it is the selected main program's name (the program pointer is taken to be on the main program, as `programNestLevel` reading `1` says).
+
 ## /machine/channel/programPath
 ```yaml
 value_type: "string"
 null_able: false
 required_filters: ["channel"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
-The full path of the currently executing program (e.g. `//CNC_MEM/USER/PATH1/O0001`). `channel` filter. Siemens converts the NCK-internal path into the user notation (`//NC/...`) before returning it.
+The full path of the currently executing program (e.g. `//CNC_MEM/USER/PATH1/O0001`). `channel` filter. Siemens converts the NCK-internal path into the user notation (`//NC/...`) before returning it. Heidenhain likewise turns a path on the `TNC:` drive into `//TNC/...` (we have not confirmed a program running from another drive); inside a subprogram (`CALL PGM`) it is that subprogram's path, and before a run starts it is the selected main program's path (confirmed in our test environment).
+
+With no program selected it is an empty string (confirmed in our test environment on Fanuc and Mitsubishi; Heidenhain does the same; confirmed on an 840D sl bench for Siemens). On Fanuc, MDI mode gives `O0000` without a path (confirmed in our test environment).
 
 **On Mitsubishi the folder part is not guaranteed to belong to the program currently executing.** deemesh fetches the directory and the file name separately on that control, and **has not found a value that gives the directory of the program currently executing**. In practice it is usually right, because this control's NC memory has a fixed directory layout (you cannot create folders - see `directoryExists`), so a user's main program and its subprogram rarely sit in different places. While a fixed cycle (`//PRG/FIX`) or a machine tool builder macro (`//PRG/MMACRO`) is called and running, however, the folder part may come out as the main program's folder (we have not confirmed this). The file name part always belongs to the program currently executing.
 
@@ -1620,6 +1753,8 @@ The **sequence number (N number)** of the block currently executing. `channel` f
 
 Only on Siemens can `0` be read as "currently in a block with no N number".
 
+**In a program written without N numbers this value cannot tell you where execution is.** As the table shows, a block with no N gives `0` or keeps an earlier N; it never counts blocks. Read the position from `/machine/channel/programBlockCounter`, and see that address's description too, since what it counts differs by machine type.
+
 **On Mitsubishi the retention lasts only while the program runs.** Once it ends and the control is in reset, the value goes back to `0` (seen on the simulator: `N400` executed last, then `0` after `M30`). On Fanuc a value stays after the program ends and after a reset and matches the N shown on the operator panel, but it need not be the number of the last block (31i bench: `30` after ending with `N40 M30`, with the panel showing `N00030` too). On no machine type take it as the last executed N.
 
 **Entering a subprogram gives you the subprogram's N** (the same moment `programName` switches to the subprogram's name). On return it goes back to the main program's N.
@@ -1631,23 +1766,26 @@ Only on Siemens can `0` be read as "currently in a block with no N number".
 value_type: "int"
 null_able: false
 required_filters: ["channel"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
 The executed-block counter. `channel` filter. Returns `int`.
 
-⚠️ **Each machine type counts something different.** The three values are not comparable, so **do not use this as a progress figure across machine types** (all three confirmed in our test environments):
+⚠️ **Each machine type counts something different.** The values are not comparable, so **do not use this as a progress figure across machine types** (all four confirmed in our test environments):
 
 | | What it counts | Resets |
 |---|---|---|
 | Fanuc | blocks executed since the cycle started (`cnc_rdblkcount`, counting through subprogram blocks) | at each Cycle Start |
 | Siemens | the **line number within the file currently executing** (`actLineNumber`, negatives clamped to `0`) | when the file changes (entering or leaving a subprogram) |
 | Mitsubishi | how many blocks have passed **since the current `N` number** | at every `N` number |
+| Heidenhain | the **block number within the file currently executing** (the number that opens each line of a conversational program; `BEGIN PGM` is `0`) | when the file changes (entering or leaving a `CALL PGM`) |
 
 **On Mitsubishi it is one half of a pair with `programSequenceNumber`.** That control addresses a position inside a program with three values - program name, `N` number, and the block count from that `N` - and the operation search on the control takes the same three. So this number alone does not fix a position; read it together with `N` to have a position (seen on the simulator: `0`, `1`, `2`, `3` through the `N100` stretch, then `0` on reaching `N500`).
 
 On Siemens the line number is **relative to the file currently executing**: entering a subprogram switches it to the subprogram's line numbers, and returning switches it back to the main's (confirmed in our test environment). The number alone therefore cannot tell you which file it counts; line 3 of the main and line 3 of the subprogram are both `3`. To pin down the file, read `/machine/channel/programName` and `/machine/channel/programNestLevel` alongside it. During the nesting transition (under a second) a sample can briefly combine mismatched values (the level updates before the name).
+
+Heidenhain is also **relative to the file currently executing**, so read it the same way as on Siemens. While a subroutine in the same file (`CALL LBL`) runs, the block numbers are that file's. It gives a number only while a block is executing, and `0` otherwise: before a run starts and after it ends it is `0` (when a run ends, the control's cursor also goes back to the start of the program), and while stopped by `M0` or single block it is that block's number. In MDI it is `0` even while a block runs (in our test environment the program status from HEIDENHAIN DNC stayed 'no program selected' meanwhile, and we have not found another way to read MDI execution).
 
 ## /machine/channel/programLastBlock
 ```yaml
@@ -1667,7 +1805,7 @@ The G-code text of the block executed just before. `channel` filter. When there 
 value_type: "string"
 null_able: false
 required_filters: ["channel"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
@@ -1679,6 +1817,8 @@ The **G-code text** of the block currently executing. `channel` filter. When the
 |---|---|---|
 | `programCurrentBlock` | `""` | the **first line** of the program |
 | `programNextBlock` | the first block | the line **after** that |
+
+Heidenhain answers `""` like Siemens and Mitsubishi. It gives the block's text only while a program is running, stopped or interrupted (including while it is stopped by an error, that is while `executionStatus` is not `0`), and `""` before a run starts and after it ends. The text is the conversational program's line as it is, including the leading block number (for example `"9 CYCL DEF 9.0 DWELL TIME"`; confirmed in our test environment). `programNextBlock` answers status `-20` on Heidenhain.
 
 Siemens and Mitsubishi can express "no block is executing" (on Mitsubishi the control reports the execution position as `0`, meaning not in operation). On Fanuc, the `cnc_rdexecprog` deemesh reads returns the look-ahead buffer, so its first line comes out as "current"; while stopped, that line is really the block that will run **next**.
 
@@ -1721,15 +1861,17 @@ Line endings are normalized to a single LF (`\n`) on every protocol; CR is strip
 value_type: "int"
 null_able: false
 required_filters: ["channel"]
-read: ["nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
-The program-call nesting level (with `desc`): `0` = no program, `1` = main, `2`+ = subprogram (L1, L2, …). `channel` filter. **Supported on Siemens and Mitsubishi** (Fanuc answers status `-20`).
+The program-call nesting level (with `desc`): `0` = no program, `1` = main, `2`+ = subprogram (L1, L2, …). `channel` filter. **Supported on Siemens, Mitsubishi and Heidenhain** (Fanuc answers status `-20`).
 
-**What it counts is the depth of the program pointer, not execution.** With a program loaded it reads `1` even when nothing is running (confirmed in our test environments: both machine types report `1` while in reset or interrupted). For "is it running right now", use `/machine/channel/executionStatus`.
+**What it counts is the depth of the program pointer, not execution.** With a program loaded it reads `1` even when nothing is running (confirmed in our test environments: Siemens and Mitsubishi report `1` while in reset or interrupted). For "is it running right now", use `/machine/channel/executionStatus`.
 
 On Mitsubishi the vendor value counts **how many subprograms deep** you are (main is `0`), one step off our scale, so deemesh shifts it. Telling `0` (no program) apart from `1` (main) costs this address one extra query to the machine.
+
+Heidenhain counts a level for a call of another program, while `CALL LBL`, which calls a subroutine in the same file, does not add one (confirmed in our test environment with `CALL PGM`; calls through `CALL SELECTED PGM` or cycle 12 have not been confirmed). The TNC7 User's Manual ('Nesting of programming techniques') allows external programs to be nested 19 deep, so this value goes up to `20`. With a program selected it reads `1` before a run starts too.
 
 ## /machine/channel/variable/variableValue
 ```yaml
@@ -1742,7 +1884,7 @@ write: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
 
 Reads/writes a **macro variable (Fanuc, Mitsubishi) / R parameter (Siemens)** (read + write). Put the variable number in the `variable` filter (e.g. `variable=100` → Fanuc and Mitsubishi `#100`, Siemens `R100`). Returns `float`; writes take `{"value": 3.14}`. **Reads** support range/comma expansion: `variable=100-105` is an array of 6 values. Writes always target a single variable (expansion syntax is rejected with status `-13`: the rule shared by every write). A **vacant macro variable on Fanuc or Mitsubishi reads as `null`**; this is the state the control's custom-macro screen shows as an empty cell (`DATA EMPTY` on Fanuc), and it is distinct from the value `0`. In a range expansion only that slot becomes `null` (e.g. `[3.14, null]`).
 
-**Which numbers exist depends on the machine and its options.** A number that machine does not have comes back as **status `-18`** (on reads and writes alike). The only thing to fix is the `variable` value, and the control's variable screen tells you which numbers that machine actually has. On Fanuc and Mitsubishi, deemesh keeps no list and passes the number through, so the error string carries the vendor's own reason. **On Siemens, deemesh knows the number of R parameters.** It reads `numRParams` (machine data `28050`) per channel when it connects, and since **R numbering starts at `0`**, a number outside `0` to count-1 is rejected immediately with status `-18` without asking the machine, and the error string carries the allowed range and the count (e.g. `expected 0-99`). So checking a number with a read before writing works on Siemens too. If a missing number is mixed into a range expansion, the **whole request fails with status `-15`** (no partial array is returned). Distinguish this from vacant variables, which are not errors but `null` elements and do not break the expansion. A number outside the syntactic range (`0`-`89999` on Fanuc) is the same status `-18`, except that one is rejected immediately without asking the machine.
+**Which numbers exist depends on the machine and its options.** A number that machine does not have comes back as **status `-18`** (on reads and writes alike). The only thing to fix is the `variable` value, and the control's variable screen tells you which numbers that machine actually has. On Fanuc and Mitsubishi, deemesh keeps no list and passes the number through, so the error string carries the vendor's own reason. **On Siemens, deemesh knows the number of R parameters.** It reads `numRParams` (machine data `28050`) per channel when it connects, and since **R numbering starts at `0`**, a number outside `0` to count-1 is rejected immediately with status `-18` without asking the machine, and the error string carries the allowed range and the count (e.g. `expected 0-99`). So checking a number with a read before writing works on Siemens too. If a missing number is mixed into a range expansion, the **whole request fails with status `-15`** (no partial array is returned). Distinguish this from vacant variables, which are not errors but `null` elements and do not break the expansion. A number outside the syntactic range (`0`-`89999` on Fanuc) is the same status `-18`, except that one is rejected immediately without asking the machine. On Fanuc, `#10000` and up are P-code macro variables, which exist only on a machine with the Macro Executor option. Without the option such a number is the same status `-18` with the option named in the error string, and other numbers in the same batch (`/read/batch`, `deemesh_read_batch`) are still read (confirmed in our test environment; a range or comma expansion fails as a whole with status `-15`, as above). Reading and writing P-code macro variable values on a machine with the option is not yet confirmed.
 
 **On Mitsubishi, a write the control refuses because of a protection answers status `-22` (machine state).** That covers a number inside the common variable setting protection ranges set by parameters `#12111`–`#12114`, and any write while data protect key 2 (PLC signal `*KEY2`, `Y709`) is off (confirmed on the simulator). The number does exist, so remove the protection on the operator panel and write again. Reads are not blocked.
 
@@ -1829,11 +1971,12 @@ Reads/writes Siemens **global GUD (SGUD)** user variables (**OPC-UA (Siemens) on
 value_type: "float"
 null_able: false
 required_filters: ["plcAddress", "plcType"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
-write: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
+write: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
+filter_codes: {"plcType": [{"value": 0, "name": "auto", "protocols": ["nc_opcua_siemens", "nc_dnc_heidenhain"]}, {"value": 1, "name": "bit", "protocols": ["nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]}, {"value": 2, "name": "uint8"}, {"value": 3, "name": "int16"}, {"value": 4, "name": "int32"}, {"value": 5, "name": "float32", "protocols": ["nc_focas2_fanuc", "nc_opcua_siemens"]}, {"value": 6, "name": "float64", "protocols": ["nc_focas2_fanuc", "nc_dnc_heidenhain"]}, {"value": 7, "name": "int8"}, {"value": 8, "name": "uint16"}, {"value": 9, "name": "uint32"}]}
 ```
 
-Reads/writes a **single element of PMC/PLC memory** (Fanuc FOCAS2 `pmc_rdpmcrng`/`pmc_wrpmcrng`, Siemens OPC-UA `/Plc/` node, Mitsubishi EZSocket `ReadDevice`/`WriteDevice`). Both read and write are supported; the return type is `float` (one value), and writes are also a single number (e.g. `{"value": 42}`). This address handles **a single element only**; to work with several elements at once, use the list-form address in the same tree. Both the `plcAddress` and `plcType` filters are required.
+Reads/writes a **single element of PMC/PLC memory** (Fanuc FOCAS2 `pmc_rdpmcrng`/`pmc_wrpmcrng`, Siemens OPC-UA `/Plc/` node, Mitsubishi EZSocket `ReadDevice`/`WriteDevice`, HEIDENHAIN DNC PLC data). Both read and write are supported; the return type is `float` (one value), and writes are also a single number (e.g. `{"value": 42}`). This address handles **a single element only**; to work with several elements at once, use the list-form address in the same tree. Both the `plcAddress` and `plcType` filters are required.
 
 **plcAddress**: the address format **differs by machine**. Unlike `plcType` this is a **deliberate exception that is not normalized**: Fanuc's `D100` and Siemens's `DB10.DBB56` point into different memory architectures, and the table that maps one to the other is not SDK knowledge but site configuration that depends on how that machine's ladder was written. It is not unified across machine types either, so if you need to read the same signal across machines, **the host application must keep a per-machine address table**.
 
@@ -1849,35 +1992,52 @@ Reads/writes a **single element of PMC/PLC memory** (Fanuc FOCAS2 `pmc_rdpmcrng`
 - **Mitsubishi**: `<device><number>` exactly as the control's PLC screen shows it (e.g. `R100`, `M50`, `Y8A0`). A point count is added as an **`[N]` subscript** and, as on Siemens, `[N]` is **"how many", not "which one"** - `R100[4]` is 4 consecutive points starting at `R100`. This (single) address takes no subscript, or `[1]`
 - **Mitsubishi**: the number base differs by device family - `M`, `R` and `D` are decimal while `X`, `Y` and `B` are **hexadecimal** (the same as on the control's screen)
 - **Mitsubishi** alignment: devices numbered **by bit**, such as `M`, `X` and `Y`, need the head number on an **8-point boundary** for byte, word and dword access (`Y890` yes, `Y894` no). Word-addressed devices such as `R` and `D` have no such constraint. A misaligned address returns status `-18`; deemesh does not decide this from a table of its own but **asks the machine**, so any address that machine accepts goes through
+- **Heidenhain**: takes two notations, **PLC memory** as `<kind><number>` (e.g. `M10`, `B10`, `W100`, `D8`) and **global PLC symbol names** (e.g. `ApiAxis[0].NN_AxDriveOn`). A value shaped like memory notation is read as memory, anything else as a global symbol name. The kind letters are case-insensitive
+- **Heidenhain** memory kinds are `M`, `I`, `O`, `T`, `C`, `B`, `W`, `D`, `R`, `S`, `IB`, `IW`, `ID`, `OB`, `OW` and `OD`. The number is a **byte address**, so it steps by the width of a cell: `W` (2 bytes a cell) goes `W0`, `W2`, `W4`, `D` (4 bytes) goes `D0`, `D4`, and `R` (8 bytes) goes `R0`, `R8`. A number that is not the first byte of a cell (`W1`) is status `-18` (confirmed in our test environment, the TNC7 programming station)
+- **Heidenhain** the count subscript `[N]` goes on memory notation only and, as on Siemens and Mitsubishi, is **"how many", not "which one"** (`W100[4]` is `W100`, `W102`, `W104`, `W106`). This (single) address takes no subscript, or `[1]`. Brackets inside a symbol name (`ApiAxis[0].NN_AxDriveOn`) are part of the name, not a count
+- **Heidenhain** symbol names are set by the machine's PLC program. deemesh cannot read the symbol list, so you **need to know the name** to read it. Ask the machine manufacturer for the names
+- **Heidenhain**: reading and writing need `access_password` in the connection settings. When it is missing or the control rejects it, the status is `-20` and the reason says which. **Write caution**: the TNC7 User's Manual says PLC access is protected by a password because changes to the PLC can make the control inoperable, and advises writing only after consulting Heidenhain or the machine manufacturer
 
-**plcType**: a numeric code that decides how to interpret the raw bytes. It is a **machine-independent unified value**, so any vendor uses the same number (the adapter translates it to each vendor's code):
+**plcType**: a numeric code that decides which type one PLC cell is read and written as. It is a **machine-independent unified value**: `1`–`9` are the same promise on every machine, down to the width and the sign, so the same bits give the same value:
 
 - `1` = bit: 1 bit (0 / 1)
-- `2` = byte: 8-bit integer (unsigned, 0–255) · address width 1 (e.g. `D100`)
-- `3` = word: 16-bit integer (signed) · address width 2 (e.g. `D100~D101`)
-- `4` = dword: 32-bit integer (signed) · address width 4 (e.g. `D100~D103`)
+- `2` = uint8: 8-bit integer, unsigned (0–255) · address width 1 (e.g. `D100`)
+- `7` = int8: 8-bit integer, signed (-128–127) · address width 1
+- `3` = int16: 16-bit integer, signed · address width 2 (e.g. `D100~D101`)
+- `8` = uint16: 16-bit integer, unsigned (0–65535) · address width 2
+- `4` = int32: 32-bit integer, signed · address width 4 (e.g. `D100~D103`)
+- `9` = uint32: 32-bit integer, unsigned · address width 4
 - `5` = float32: 32-bit real · address width 4 (e.g. `D100~D103`)
 - `6` = float64: 64-bit real · address width 8 (e.g. `D100~D107`)
 
-`0` = **auto**: the source decides the type. Protocols where the node knows its type, like Siemens (OPC-UA), read with that native type. In contrast, protocols that address raw memory, like **Fanuc**, have no intrinsic type, so `0` (auto) is an error and it must be specified. **Fanuc (FOCAS2)** reads PMC memory in byte units, so `1` (bit) is unsupported as well. Specify one of `2` (byte)–`6` (float64).
+The same byte `0xA0` reads `160` with `2` and `-96` with `7`. A write to an integer type (`1`–`4`, `7`–`9`) takes only a whole number inside that type's range; a value outside it, or one with a fractional part, answers status `-16` (it is neither cut down nor rounded). The floating point types (`5`, `6`) take fractions, but the value must be finite and, for `5`, within the float32 range (otherwise `-16`).
 
-**Important (Fanuc)**: the byte count of the `plcAddress` range must match the `plcType` size (e.g. `plcType=3` (word, 2 bytes) with a single `D100` address fails → specify `D100~D101`). `plcType` decides **only the interpretation**, and the result is returned as `float` (a JSON number).
+`0` = **auto**: the type the machine itself gives that cell. **`0` is the only code whose value may differ by machine** (Siemens unsigned, Heidenhain signed, below). Machines that address raw memory, like Fanuc and Mitsubishi, have no intrinsic type, so `0` answers status `-18` there and the type must be given.
 
-**Siemens** has the type encoded in the address itself (`DBB`/`DBW`/`DBD`, etc.), so `plcType=0` (auto) is recommended, and putting in `1`–`6` behaves the same (it reads with the type the server reports). Writes read the node first to confirm the server type, then write with the same type.
+Where the width of a cell comes from differs by machine. **On Fanuc and Mitsubishi `plcType` sets the width; on Siemens and Heidenhain the address does.** Where the address sets the width, `1`–`9` must match that cell's width; a mismatch answers status `-18`, and the error string names the cell's width and the codes it takes.
 
-**Mitsubishi** accepts four types only: `1` (bit), `2` (byte), `3` (word) and `4` (dword). `0` (auto) is out for the same reason as on Fanuc (raw memory has no intrinsic type), and `5`/`6` (floating point) because this control's PLC device API carries integers only. All three return status `-18`, and the address itself still works. `3` (word) and `4` (dword) are read as **signed** integers: a word with every bit set is `-1`, not `65535`. **Writes do not take `2` (byte)** (status `-18`). On this control the only call that writes bytes is the block write, which covers 2 points or more and would change the neighbouring device as well, so deemesh refuses a byte write to this single-point address. Write it as `3` (word), or use the list address `/machine/plcAddress/plcType/plcValueList` with 2 points or more. Reading with `2` works.
+**Important (Fanuc)**: the byte count of the `plcAddress` range must match the `plcType` size (e.g. `plcType=3` (int16, 2 bytes) with a single `D100` address fails → specify `D100~D101`). PMC reads go in byte units, so `1` (bit) is not taken either. Specify one of `2`–`9`. The result is returned as `float` (a JSON number).
+
+**Siemens** has the width in the address (`DBX`, `Qx.y`, `Ix.y`, `Mx.y` are bits; `DBB`, `QB`, `IB`, `MB` bytes; `DBW`, `QW`, `IW`, `MW` words; `DBD`, `QD`, `ID`, `MD` double words). A bit address takes `1`, a byte address `2`/`7`, a word address `3`/`8`, and a double word address `4`/`9`/`5`. `0` (auto) is the server's base type, so **bytes, words and double words are all unsigned integers**; read signed values with `7`, `3` or `4`. **Read and write a floating-point value (REAL) with `plcType=5`.** It works on double word addresses only and corresponds to the `F` format of the operator panel's `NC/PLC variables` screen (reading and writing confirmed on our 840D sl bench). `plcType=6` (float64) answers status `-18` because this PLC access has no 8-byte floating point. A location with no fixed width, such as a timer or counter, takes `0` only. Writes read the node first to confirm the server type, then write with the same type.
+
+**Mitsubishi** takes `1` (bit), `2`/`7` (byte), `3`/`8` (word) and `4`/`9` (dword). `0` (auto) is out for the same reason as on Fanuc (raw memory has no intrinsic type), and `5`/`6` (floating point) because this control's PLC device API carries integers only. All three return status `-18`, and the address itself still works. **Writes do not take a single byte point (`2`/`7`)** (status `-18`). On this control the only call that writes bytes is the block write, which covers 2 points or more and would change the neighbouring device as well, so deemesh refuses a byte write to this single-point address. Write it as a word (`3`/`8`), or use the list address `/machine/plcAddress/plcType/plcValueList` with 2 points or more. Reading as a byte works.
+
+**Heidenhain** takes the width of a memory cell from its kind letter (`M`, `I`, `O`, `T`, `C` bits; `B`, `IB`, `OB` bytes; `W`, `IW`, `OW` words; `D`, `ID`, `OD` double words; `R` 8-byte reals), and the width of a symbol from the value range the control reports. A bit cell takes `1`, a byte cell `2`/`7`, a word cell `3`/`8`, a double word cell `4`/`9`, and an `R` cell `6`. `5` (float32) answers status `-18` because this control has no 4-byte floating point cells. `0` (auto) is what the control gives, so **integers are signed** (in our test environment they matched the decimal view of the operator panel's PLC table). A bit cell comes as `0`/`1`. Writes use the same type. Writing with `0` (auto) takes the signed range on an integer cell (`-128`–`127` on a byte cell), so write `128`–`255` with `2`. Writes were confirmed in our test environment on memory cells (`M`, `B`, `W`, `D`, `R`); writing to a symbol name has not been confirmed yet.
+
+**Text locations are read with `/machine/plcAddress/plcText`.** On Heidenhain, when the value at that location is text, this address answers status `-25`. Read `/machine/plcAddress/plcText` with the same `plcAddress` (it does not use `plcType`). Heidenhain's `S` memory and text symbols are such locations (confirmed in our test environment). On Siemens this address reads the same byte as a number, and `plcText` reads a text variable from its byte address. Fanuc and Mitsubishi never give this answer, and neither does Siemens for an address written in the operator panel's notation. In a request that reads several locations at once with a range or commas (`plcAddress=W0,S0`), one failed location fails the whole request with status `-15`, so this answer too is left only in the error text; read such a location on its own. Text cannot be written: writing this address to a text location answers status `-18` (Siemens, Heidenhain), and `plcText` only reads.
 
 **A written value may not stay.** The write is accepted and the status is `0`, but on some machines the value at that address keeps being refilled by the machine itself. Whether an address behaves that way depends on how that machine is configured, so read the value back after writing to see whether it stayed.
 
-**Error codes**: an address that **does not exist on the machine** also returns status `-18` (invalid filter value); which blocks and bytes exist depends on that machine's ladder, so check the same screen on the operator panel first. On Siemens, when the server answers access denied (`BadUserAccessDenied`), deemesh answers status `-17` naming the rights to give (`PlcRead`, `PlcReadDB<n>` or `SinuReadAll`). On an 840D sl bench an account without PLC read rights got existing addresses reported as unknown, so when the server reports the address as unknown, deemesh checks the account's rights, read when it connects: without PLC read rights it answers the same status `-17` with the rights; if the rights are unknown, status `-18` with a note that missing rights look the same; with the rights present, status `-18` (the address is not on this machine). A `plcType` the machine cannot use returns status `-18` too. A value outside the spec (other than `0`~`6`) returns the same status `-18`, and both call for the same fix: pick another `plcType`. It is not status `-20` because **the address itself works on that machine**. status `-20` is reserved for "this address cannot be used on this machine". The error string carries the accepted values.
+**Error codes**: an address that **does not exist on the machine** also returns status `-18` (invalid filter value); which blocks and bytes exist depends on that machine's ladder, so check the same screen on the operator panel first. On Siemens, when the server answers access denied (`BadUserAccessDenied`), deemesh answers status `-17` naming the rights to give (`PlcRead`, `PlcReadDB<n>` or `SinuReadAll`). On an 840D sl bench an account without PLC read rights got existing addresses reported as unknown, so when the server reports the address as unknown, deemesh checks the account's rights, read when it connects: without PLC read rights it answers the same status `-17` with the rights; if the rights are unknown, status `-18` with a note that missing rights look the same; with the rights present, status `-18` (the address is not on this machine). A `plcType` the machine cannot use returns status `-18` too. A value outside the spec (other than `0`~`9`) returns the same status `-18`, and both call for the same fix: pick another `plcType`. It is not status `-20` because **the address itself works on that machine**. status `-20` is reserved for "this address cannot be used on this machine". The error string carries the accepted values. On Heidenhain a cell or symbol that is not on the machine is status `-18`, and when `access_password` is missing or rejected the address itself cannot be used on that connection, so the status is `-20`.
 
 ## /machine/plcAddress/plcType/plcValueList
 ```yaml
 value_type: "floatArray"
 null_able: false
 required_filters: ["plcAddress", "plcType"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
-write: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
+write: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
+filter_codes: {"plcType": [{"value": 0, "name": "auto", "protocols": ["nc_opcua_siemens", "nc_dnc_heidenhain"]}, {"value": 1, "name": "bit", "protocols": ["nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]}, {"value": 2, "name": "uint8"}, {"value": 3, "name": "int16"}, {"value": 4, "name": "int32"}, {"value": 5, "name": "float32", "protocols": ["nc_focas2_fanuc", "nc_opcua_siemens"]}, {"value": 6, "name": "float64", "protocols": ["nc_focas2_fanuc", "nc_dnc_heidenhain"]}, {"value": 7, "name": "int8"}, {"value": 8, "name": "uint16"}, {"value": 9, "name": "uint32"}]}
 ```
 
 Reads/writes a **block of PMC/PLC memory elements** as an array. The filters, address format, and `plcType` rules are the same as `plcValue` (single) above; the only difference is that it handles **multiple elements**. The return type is `floatArray`, and the write `value` is a number array `[1, 2, ...]`. Even a single element must be written as an array like `[42]`. As with `plcValue`, some machines are configured so that a written value does not stay, so read it back after writing.
@@ -1886,12 +2046,34 @@ Reads/writes a **block of PMC/PLC memory elements** as an array. The filters, ad
 - **Siemens**: multi-element subscripts are allowed. `[N]` is a **count**. `DB10.DBB56[4]` returns **4 consecutive elements** starting at offset 56 as an array. The elements the server gives become the array as-is
 - **Siemens**: omitting the subscript or giving `[1]` still returns **an array** (`[131.0]`). This address always returns `floatArray`, so a single element does not change the shape. Use it whenever the count varies or is not known in advance, and your parsing code never has to branch
 - **Mitsubishi**: `[N]` is a count (`R100[4]` -> an array of 4). The maximum number of points in one read depends on the type - bit and byte `1280`, word `640`, dword `320`. Beyond that is status `-18`
-- **Mitsubishi**: `plcType=2` (byte) **cannot write a single point** (status `-18`). This control's single-device write call has no byte type, and its block write takes 2 points or more, which would change the neighbouring device as well. Use `3` (word), or this list address with 2 points or more. **Reading a single point is fine**
+- **Mitsubishi**: a byte (`plcType` `2`/`7`) **cannot write a single point** (status `-18`). This control's single-device write call has no byte type, and its block write takes 2 points or more, which would change the neighbouring device as well. Use a word (`3`/`8`), or this list address with 2 points or more. **Reading a single point is fine**
+- **Heidenhain**: the `[N]` of memory notation is the count (`W100[4]` -> an array of 4: `W100`, `W102`, `W104`, `W106`, stepping by the width of a cell). A symbol name always gives a one-element array. A write is sent cell by cell, but every value and cell is checked first, so one value out of range or one missing cell writes nothing
+- **Heidenhain**: when a location holds text, the answer is status `-25`. Read such a location with `/machine/plcAddress/plcText`. That address reads one element at a time, so for several locations list `plcAddress` with commas. When a request to this address lists `plcAddress` with commas, however, one failed location fails the whole request with status `-15` (this answer is left only in the error text)
 - Writes require the **element count to exactly match the target range/node's element count**
 
-**Error codes**: an address that **does not exist on the machine** also returns status `-18` (invalid filter value); which blocks and bytes exist depends on that machine's ladder, so check the same screen on the operator panel first. On Siemens, when the server answers access denied (`BadUserAccessDenied`), deemesh answers status `-17` naming the rights to give (`PlcRead`, `PlcReadDB<n>` or `SinuReadAll`). On an 840D sl bench an account without PLC read rights got existing addresses reported as unknown, so when the server reports the address as unknown, deemesh checks the account's rights, read when it connects: without PLC read rights it answers the same status `-17` with the rights; if the rights are unknown, status `-18` with a note that missing rights look the same; with the rights present, status `-18` (the address is not on this machine). A `plcType` the machine cannot use returns status `-18` too. A value outside the spec (other than `0`~`6`) returns the same status `-18`, and both call for the same fix: pick another `plcType`. It is not status `-20` because **the address itself works on that machine**. status `-20` is reserved for "this address cannot be used on this machine". The error string carries the accepted values.
+**Error codes**: an address that **does not exist on the machine** also returns status `-18` (invalid filter value); which blocks and bytes exist depends on that machine's ladder, so check the same screen on the operator panel first. On Siemens, when the server answers access denied (`BadUserAccessDenied`), deemesh answers status `-17` naming the rights to give (`PlcRead`, `PlcReadDB<n>` or `SinuReadAll`). On an 840D sl bench an account without PLC read rights got existing addresses reported as unknown, so when the server reports the address as unknown, deemesh checks the account's rights, read when it connects: without PLC read rights it answers the same status `-17` with the rights; if the rights are unknown, status `-18` with a note that missing rights look the same; with the rights present, status `-18` (the address is not on this machine). A `plcType` the machine cannot use returns status `-18` too. A value outside the spec (other than `0`~`9`) returns the same status `-18`, and both call for the same fix: pick another `plcType`. It is not status `-20` because **the address itself works on that machine**. status `-20` is reserved for "this address cannot be used on this machine". The error string carries the accepted values. On Heidenhain a cell or symbol that is not on the machine is status `-18`, and when `access_password` is missing or rejected the address itself cannot be used on that connection, so the status is `-20`.
 
 The length is set by the `[N]` in the address, so `[]` never appears.
+
+## /machine/plcAddress/plcText
+```yaml
+value_type: "string"
+null_able: false
+required_filters: ["plcAddress"]
+read: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
+write: []
+```
+
+Reads **a single PLC data location whose value is text** (Siemens OPC-UA `/Plc/` node, HEIDENHAIN DNC PLC data). The return type is `string`, and there is no write. The only filter is `plcAddress`, written the same way as for `/machine/plcAddress/plcType/plcValue`. Text has only one way to be read, so this address does not use `plcType`.
+
+- **Reading a location that holds a number** answers status `-25`. Such a location is read by `/machine/plcAddress/plcType/plcValue`. That address also needs `plcType`, so add `plcType=0` (auto) and read it with the same `plcAddress`
+- For several locations, list `plcAddress` with commas (the result is an array of strings)
+- A location with no content reads as the empty string `""`
+- **Heidenhain**: reads `S` memory and text symbols. Each location is one string, so a count subscript (`S0[2]`) is status `-18`. In our test environment (the TNC7 programming station) `S0` answered `""` and the basic PLC program's time symbol answered `"01:01:54"`. Symbol names are set by the machine's PLC program. Reading needs `access_password` in the connection settings; when it is missing or the control rejects it, the status is `-20`
+- **Siemens**: returns **the same characters the operator panel's `NC/PLC variables` screen shows in the `A` format**. It joins the bytes from a byte address (`DBB`, `MB`, `IB` or `QB`) for the count in the subscript `[N]` (one byte without a subscript) into text, stops at a `0` byte as the screen does, and reads bytes of 128 and above as Latin characters (`Ä`, `ß` and so on), as the screen does. If the screen shows `HELLO` for `MB302[7]` in the `A` format, `plcAddress=MB302[7]` reads `"HELLO"` too (checked side by side with the operator panel on our 840D sl bench: `HELLO`, `HE` for text with a `0` in the middle, and `AÄßB`). A text variable (STRING) of a PLC program holds its maximum length and actual length in its first two bytes, so its characters start two bytes after the variable's address; give its maximum length as the count. Like the screen, this does not look at the actual-length byte, so if the PLC shortens a string without clearing the rest, leftover characters can show. A word, double word or bit address is not text and answers status `-25`, pointing to `plcValue`. Answers about access rights and missing addresses are the same as for `plcValue`
+- The **Fanuc and Mitsubishi** adapters do not have this address (status `-20`). On those two, read PLC addresses as numbers with `plcValue`
+
+**Error codes**: a location that is not on the machine is status `-18`.
 
 ## /machine/channel/parameter/index/parameterValue
 ```yaml
@@ -1910,7 +2092,7 @@ The value of **one row** of a CNC parameter (**Fanuc and Mitsubishi**, `float`, 
 - Decimal (real) parameters travel as real numbers with the machine's decimal places applied, and writes are stored with the same number of places. On Mitsubishi the setting unit `#1003` decides those places for length parameters; finer digits are rounded by the control, which then answers status `0` (confirmed in our test environment with `#8205`). Read the value back to see what was stored.
 - **Mitsubishi has parameters that are not numeric** (for example the axis name `#1013` reads `X`). This address is `float` and cannot represent them, so it refuses with status `-18` and carries the string that was actually read. `index` is the axis number for axis parameters and only `1` otherwise.
 - On Fanuc, writing an out-of-range value to an integer parameter is refused with status `-16` (the allowed range is included in the error). On Mitsubishi a value the control rejects answers status `-16` without the allowed range, so check the setting range in the parameter manual.
-- **Write caution**: parameters change machine behavior. A write is refused with status `-22` (machine state) on Fanuc when the machine blocks parameter writes, and on Mitsubishi while the part system is in automatic operation (including a pause) or while data protect key 2 (PLC signal `*KEY2`, `Y709`, which protects user parameters) is off (reset the part system or turn the key on, then write again; deemesh tells the key case apart by reading that signal after the refusal). Some parameters require a power cycle after the change. If the Fanuc library does not include the parameter write function (`cnc_wrparam`), writes return status `-20` (as with the Linux library and one of the Windows libraries we checked; which functions a Fanuc library includes depends on the package).
+- **Write caution**: parameters change machine behavior. A write is refused with status `-22` (machine state) on Fanuc when the machine blocks parameter writes, and on Mitsubishi while the part system is in automatic operation (including a pause) or while data protect key 2 (PLC signal `*KEY2`, `Y709`, which protects user parameters) is off (reset the part system or turn the key on, then write again; deemesh tells the key case apart by reading that signal after the refusal). Some parameters require a power cycle after the change. If the Fanuc library does not include the parameter write function (`cnc_wrparam`), writes return status `-20` (which functions a Fanuc library includes depends on the package).
 
 **Siemens answers with status `-20`.** That control uses machine data addressed by name rather than a numbered parameter system, and deemesh does not open that channel through this address.
 
@@ -1982,15 +2164,17 @@ The value of **one row** of the NC's internal data (**Mitsubishi only**, `float`
 value_type: "int"
 null_able: false
 required_filters: []
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
 The total NC memory capacity. Returns `int` + `unit:"bytes"`, read-only.
 
-What it refers to is the **machining-program memory**. On Fanuc it is the drive capacity from `cnc_rdpdf_inf` (in bytes, despite the field names); on Siemens the user area of the NC's **passive file system** (where main and subprograms, workpieces and GUD definition files live; Extended Functions manual, S7), `/Nck/State/usedMemDramUPassF` and `freeMemDramUPassF`; on Mitsubishi the character counts from `GetInformation` (the same capacity and remaining-space figures shown on the control's edit screen). One of the three is calculated from the other two (Fanuc: free = total - used; Siemens and Mitsubishi: total = used + free), so the three read together in one request satisfy `ncMemorySizeTotal` = `ncMemorySizeUsed` + `ncMemorySizeFree`. On Siemens, when the value cannot be read the answer is status `-17`, not `0` (the total needs both the used and the free value).
+What it refers to is the **machining-program memory**. On Fanuc it is the drive capacity from `cnc_rdpdf_inf` (in bytes, despite the field names); on Siemens the user area of the NC's **passive file system** (where main and subprograms, workpieces and GUD definition files live; Extended Functions manual, S7), `/Nck/State/usedMemDramUPassF` and `freeMemDramUPassF`; on Mitsubishi the character counts from `GetInformation` (the same capacity and remaining-space figures shown on the control's edit screen). One of the three is calculated from the other two (Fanuc: free = total - used; Siemens and Mitsubishi: total = used + free; Heidenhain: used = total - free), so the three read together in one request satisfy `ncMemorySizeTotal` = `ncMemorySizeUsed` + `ncMemorySizeFree`. On Siemens, when the value cannot be read the answer is status `-17`, not `0` (the total needs both the used and the free value).
 
 **On Mitsubishi the value is that of the main root (`//PRG`, `Memory` on the operator panel).** The second program memory of M800V/M80V controls (`//PRG2`, `Memory2` on the panel) counts its capacity separately and is not included (confirmed in our test environment).
+
+**On Heidenhain the value is that of `//TNC` (the `TNC:` drive on the control).** It is the total and free bytes from HEIDENHAIN DNC's `GetDiskSpace`, and the used space is their difference. In our test environment the used space shown by the control's file manager was larger than `ncMemorySizeUsed` by about 5% of the total capacity (the same difference at two comparisons with files added in between; the total was the same). The control's figure was recalculated only when the control restarted, so adding or deleting files in the meantime did not change it.
 
 All sizes in the SDK are in **bytes**, the same unit as `sizeBytes` in `entry`/`entryList`, so a question like "does this file fit in the free space" needs no conversion. When a machine only reports a coarser unit, this address still returns bytes, and the value is then a multiple of that unit.
 
@@ -1999,15 +2183,17 @@ All sizes in the SDK are in **bytes**, the same unit as `sizeBytes` in `entry`/`
 value_type: "int"
 null_able: false
 required_filters: []
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
 The NC memory in use. Returns `int` + `unit:"bytes"`, read-only.
 
-What it refers to is the **machining-program memory**. On Fanuc it is the drive capacity from `cnc_rdpdf_inf` (in bytes, despite the field names); on Siemens the user area of the NC's **passive file system** (where main and subprograms, workpieces and GUD definition files live; Extended Functions manual, S7), `/Nck/State/usedMemDramUPassF` and `freeMemDramUPassF`; on Mitsubishi the character counts from `GetInformation` (the same capacity and remaining-space figures shown on the control's edit screen). One of the three is calculated from the other two (Fanuc: free = total - used; Siemens and Mitsubishi: total = used + free), so the three read together in one request satisfy `ncMemorySizeTotal` = `ncMemorySizeUsed` + `ncMemorySizeFree`. On Siemens, when the value cannot be read the answer is status `-17`, not `0`.
+What it refers to is the **machining-program memory**. On Fanuc it is the drive capacity from `cnc_rdpdf_inf` (in bytes, despite the field names); on Siemens the user area of the NC's **passive file system** (where main and subprograms, workpieces and GUD definition files live; Extended Functions manual, S7), `/Nck/State/usedMemDramUPassF` and `freeMemDramUPassF`; on Mitsubishi the character counts from `GetInformation` (the same capacity and remaining-space figures shown on the control's edit screen). One of the three is calculated from the other two (Fanuc: free = total - used; Siemens and Mitsubishi: total = used + free; Heidenhain: used = total - free), so the three read together in one request satisfy `ncMemorySizeTotal` = `ncMemorySizeUsed` + `ncMemorySizeFree`. On Siemens, when the value cannot be read the answer is status `-17`, not `0`.
 
 **On Mitsubishi the value is that of the main root (`//PRG`, `Memory` on the operator panel).** The second program memory of M800V/M80V controls (`//PRG2`, `Memory2` on the panel) counts its capacity separately and is not included (confirmed in our test environment).
+
+**On Heidenhain the value is that of `//TNC` (the `TNC:` drive on the control).** It is the total and free bytes from HEIDENHAIN DNC's `GetDiskSpace`, and the used space is their difference. In our test environment the used space shown by the control's file manager was larger than `ncMemorySizeUsed` by about 5% of the total capacity (the same difference at two comparisons with files added in between; the total was the same). The control's figure was recalculated only when the control restarted, so adding or deleting files in the meantime did not change it.
 
 All sizes in the SDK are in **bytes**, the same unit as `sizeBytes` in `entry`/`entryList`, so a question like "does this file fit in the free space" needs no conversion. When a machine only reports a coarser unit, this address still returns bytes, and the value is then a multiple of that unit.
 
@@ -2016,15 +2202,17 @@ All sizes in the SDK are in **bytes**, the same unit as `sizeBytes` in `entry`/`
 value_type: "int"
 null_able: false
 required_filters: []
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
 The free NC memory capacity. Returns `int` + `unit:"bytes"`, read-only.
 
-What it refers to is the **machining-program memory**. On Fanuc it is the drive capacity from `cnc_rdpdf_inf` (in bytes, despite the field names); on Siemens the user area of the NC's **passive file system** (where main and subprograms, workpieces and GUD definition files live; Extended Functions manual, S7), `/Nck/State/usedMemDramUPassF` and `freeMemDramUPassF`; on Mitsubishi the character counts from `GetInformation` (the same capacity and remaining-space figures shown on the control's edit screen). One of the three is calculated from the other two (Fanuc: free = total - used; Siemens and Mitsubishi: total = used + free), so the three read together in one request satisfy `ncMemorySizeTotal` = `ncMemorySizeUsed` + `ncMemorySizeFree`. On Siemens, when the value cannot be read the answer is status `-17`, not `0`.
+What it refers to is the **machining-program memory**. On Fanuc it is the drive capacity from `cnc_rdpdf_inf` (in bytes, despite the field names); on Siemens the user area of the NC's **passive file system** (where main and subprograms, workpieces and GUD definition files live; Extended Functions manual, S7), `/Nck/State/usedMemDramUPassF` and `freeMemDramUPassF`; on Mitsubishi the character counts from `GetInformation` (the same capacity and remaining-space figures shown on the control's edit screen). One of the three is calculated from the other two (Fanuc: free = total - used; Siemens and Mitsubishi: total = used + free; Heidenhain: used = total - free), so the three read together in one request satisfy `ncMemorySizeTotal` = `ncMemorySizeUsed` + `ncMemorySizeFree`. On Siemens, when the value cannot be read the answer is status `-17`, not `0`.
 
 **On Mitsubishi the value is that of the main root (`//PRG`, `Memory` on the operator panel).** The second program memory of M800V/M80V controls (`//PRG2`, `Memory2` on the panel) counts its capacity separately and is not included (confirmed in our test environment).
+
+**On Heidenhain the value is that of `//TNC` (the `TNC:` drive on the control).** It is the total and free bytes from HEIDENHAIN DNC's `GetDiskSpace`, and the used space is their difference. In our test environment the used space shown by the control's file manager was larger than `ncMemorySizeUsed` by about 5% of the total capacity (the same difference at two comparisons with files added in between; the total was the same). The control's figure was recalculated only when the control restarted, so adding or deleting files in the meantime did not change it.
 
 All sizes in the SDK are in **bytes**, the same unit as `sizeBytes` in `entry`/`entryList`, so a question like "does this file fit in the free space" needs no conversion. When a machine only reports a coarser unit, this address still returns bytes, and the value is then a multiple of that unit.
 
@@ -2035,15 +2223,17 @@ All sizes in the SDK are in **bytes**, the same unit as `sizeBytes` in `entry`/`
 value_type: "string"
 null_able: false
 required_filters: []
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
-The root path of the main NC memory, the starting point for paths to put in the `ncMemoryPath` filter. Fanuc is usually `//CNC_MEM`, Siemens `//NC`, and Mitsubishi usually `//PRG`. On Mitsubishi the root stays `//PRG` even when the program selected at connection time is in the second program memory (`//PRG2`) or on the SD card (`//IC1`); those two appear in `/machine/ncMemoryExternalRootPathList` (`//PRG2` confirmed in our test environment; the SD card has not been confirmed yet).
+The root path of the main NC memory, the starting point for paths to put in the `ncMemoryPath` filter. Fanuc is usually `//CNC_MEM`, Siemens `//NC`, Mitsubishi usually `//PRG`, and Heidenhain `//TNC`. On Mitsubishi the root stays `//PRG` even when the program selected at connection time is in the second program memory (`//PRG2`) or on the SD card (`//IC1`); those two appear in `/machine/ncMemoryExternalRootPathList` (`//PRG2` confirmed in our test environment; the SD card has not been confirmed yet).
 
 **Under Fanuc's `//CNC_MEM`** there is `USER`, where machining programs live (per-path `PATH1`, `PATH2`, … and the shared `LIBRARY`), and the system and machine tool builder macro folders `SYSTEM`, `MTB1` and `MTB2` (confirmed in our test environment). deemesh does not write to the last three (status `-18`; reading works).
 
 **On Mitsubishi, `//PRG` is the program area of `Memory` (the NC memory) on the operator panel, and machining programs live below it in `//PRG/USER`** (the `Memory:/Program` list on the panel). Listing `//PRG` shows folders: `USER` (machining programs), `MDI` (the MDI program `MDI.PRG`), `FIX` (fixed cycles), `MMACRO` (machine tool builder macros). M700-series controls also show `UMACRO`. On M800-series controls deemesh leaves `UMACRO` out of the list: the manual gives that path for M700 only, and in our test environment (M800V) it pointed at the same files as `USER` (paths under `//PRG/UMACRO/…` still open when you give them directly). deemesh does not write under `FIX` or `MMACRO` (status `-18`; reading works). The second program memory of M800V/M80V controls (`Memory2` on the panel) is `//PRG2` and appears in `ncMemoryExternalRootPathList`. It holds only the machining program folder `USER`. This value stays `//PRG` even when a program there is selected.
+
+**On Heidenhain, `//TNC` is the `TNC:` drive of the control's file manager, and machining programs usually live under `//TNC/nc_prog`.** deemesh works with this drive only. In our test environment access to the other drives was refused, so `ncMemoryExternalRootPathList` answers status `-20` (the TNC7 User's Manual assigns the `PLC:` drive to the machine manufacturer's user and `SYS:` to the service user). deemesh does not write under `//TNC/table`, `//TNC/system` or `//TNC/config`, which hold tables and settings (status `-18`; reading works; see `fileContent`). Names are found regardless of letter case.
 
 ## /machine/ncMemoryExternalRootPathList
 ```yaml
@@ -2069,7 +2259,7 @@ The list of **storage locations** other than the main NC memory root (e.g. data 
 value_type: "object"
 null_able: false
 required_filters: ["ncMemoryPath"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
@@ -2078,21 +2268,23 @@ Information about a single entry at the path (`object`). The key set is **always
 | Key | Type | When unavailable |
 |---|---|---|
 | `name` | `string` | n/a |
-| `sizeBytes` | `int` | `null` for a folder, or when the size could not be read. Siemens and Mitsubishi report the content's byte count; **Fanuc reports the allocated size (in 500-byte units)**, so a 22-byte program lists `500` |
-| `modifiedAt` | `string` | `null` for a folder, or on a machine without modification times (always `null` on Siemens) |
+| `sizeBytes` | `int` | `null` for a folder, or when the size could not be read. Siemens, Mitsubishi and Heidenhain report the content's byte count; **Fanuc reports the allocated size (in 500-byte units)**, so a 22-byte program lists `500` |
+| `modifiedAt` | `string` | `null` for a folder, or on a machine without modification times (always `null` on Siemens; for Heidenhain see below) |
 | `isDir` | `boolean` | n/a |
-| `comment` | `string` | `null` for a folder, or on a machine without comments (always `null` on Siemens; see below) |
+| `comment` | `string` | `null` for a folder, or on a machine without comments (always `null` on Siemens and Heidenhain; see below) |
 
 **`comment` is the program comment the control delivers together with the listing.** On Fanuc it is the parenthesized comment on the O-number line, on Mitsubishi the comment column of the program list (the parenthesized comment in the first block), so **one listing gives it without opening any file** (confirmed on the simulators). **On Siemens it is always `null`, because the listing carries no comment**; a `;` comment on the first line is file content and shows only when you read `fileContent`. If you must tell programs apart from the listing alone, separate them on Siemens by **folder or name** instead of a comment: a subfolder (created with `directoryExists`) and a name prefix both show up in a single `entryList`. Reading `fileContent` for every candidate costs one transfer per file, which adds up on a slow link.
 
 A trailing `/` on the path forces a folder; without it files are searched first. A missing entry answers status `-18` (including a name inside an empty folder and a path below a folder that does not exist). Status `-18` means only that the entry is not there; a communication error answers its own status. On Mitsubishi, however, a folder path that is too long also answers status `-18`, and then the error text says the path or name is too long rather than that the entry is missing (confirmed on the simulator).
+
+**On Heidenhain, `modifiedAt` is the time HEIDENHAIN DNC gives, unchanged and without a `Z`.** It is the time as seen in the time zone of the PC your program runs on, while the control's file manager shows times in the time zone set on the control. So it matches the control when the two time zones are the same, and differs by the difference between them otherwise (in our test environment, setting the control's time zone to that of the PC made the file manager match this value as soon as the listing was refreshed, and this value did not change). Heidenhain finds names regardless of letter case, and `name` comes back as the control stores it. The listing carries no comment, so `comment` is always `null`.
 
 ## /machine/ncMemoryPath/entryList
 ```yaml
 value_type: "objectArray"
 null_able: false
 required_filters: ["ncMemoryPath"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
@@ -2104,18 +2296,20 @@ A folder that does not exist returns status `-18`.
 
 An empty folder answers `[]`.
 
-`comment` comes with the single listing on Fanuc and Mitsubishi and is always `null` on Siemens. The reason and the alternative (separating programs by folder or name) are in the `comment` note of `entry`.
+**On Heidenhain the control's listing is returned as it is, leaving out only `.` and `..`.** Entries with the hidden attribute appear too (for example the `*.T.DEP` files that appeared in our test environment when a program ran; the control's file manager shows them as well, and they appeared even with the machine setting for creating tool usage files set to never). `lost+found` and `.nc_index`, which the control's screen does not show in the `//TNC` list, do appear (confirmed in our test environment). The control refuses the listing of `lost+found`, which answers status `-17`.
+
+`comment` comes with the single listing on Fanuc and Mitsubishi and is always `null` on Siemens and Heidenhain. The reason and the alternative (separating programs by folder or name) are in the `comment` note of `entry`.
 
 ## /machine/ncMemoryPath/entryName
 ```yaml
 value_type: "string"
 null_able: false
 required_filters: ["ncMemoryPath"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
-write: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
+write: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 ```
 
-The **name of the entry** that `ncMemoryPath` points at. Reading returns **the name the machine holds for that entry**, and writing performs a **rename**. The read answers for a file or a folder alike, and rejects a path with nothing at it with status `-18`, the same judgement `entry` makes. Status `-18` means only that nothing is there; a communication error answers its own status. What comes back is the machine's own name, not the string you asked with, so a difference in spelling shows the machine's version. Writes take `{"value": "new name"}`, and path separators are not allowed, common to files/folders. **A root cannot be renamed**: if `ncMemoryPath` is a single segment such as `//CNC_MEM`, `//NC`, `//PRG` or an external drive, the request is refused with status `-18` (filter value error) without touching the machine. A root written with backslashes, such as `\\NC`, is refused the same way. On Siemens, `//NC/Part programs`, `//NC/Subprograms` and `//NC/Workpieces` are not renamed either (the same rule as the delete refusal of `directoryExists`). It refers to the same "entry" as `entry`/`entryList`. **Siemens does not rename the selected main program while the channel is running (not in Reset).** That case answers status `-22` (machine state); reset the channel or try again after the program has ended. Even with every channel in Reset, a refusal of the rename in the current state (`BadInvalidState`) answers status `-22` as well, and the error text then points to an editor or another client holding the file. **A subprogram the look-ahead has opened differs from the delete**: on our test bench, during a run, deleting that subprogram (`fileExists`) answered status `-22` while renaming it was accepted. Rename a subprogram the running program will call while the channel is in Reset. **Fanuc does not rename its selected main program (even when not running), and Mitsubishi does not rename the main program of a part system in automatic operation**; that answers status `-22` (machine state). On Fanuc an entry under protection (parameter `3202#0`/`#4`, or an edit-disable attribute set on the panel), and a rename into a protected number range, also answer status `-22`. On Mitsubishi the rename answers status `-22` while the data protection by operation level (parameter `#1391`) protects program editing (confirmed on the simulator; see `fileContent`). **If the entry to rename does not exist**, all three controls answer status `-18`. The exception is the Fanuc data server (`//DATA_SV`): there deemesh does not tell a missing entry apart, so the vendor's refusal comes back as it is with status `-17`, except that a new name already in that folder answers status `-21`. The Fanuc refusal of the selected main program above (status `-22`) also applies to CNC memory only. An empty new name answers status `-16` (invalid write value) on all three controls. **If the new name is the entry's current name**, nothing is sent to the control; deemesh only checks that the entry exists (success if it does, status `-18` if not), as a file system rename does, and only when the letter case matches too. Mitsubishi's program memory (`//PRG`, `//PRG2`) stores names in upper case, so there a name that differs only in letter case counts as the same name. **If an entry with the new name already exists**, all three controls refuse the request with status `-21` (already exists) and nothing is changed (deemesh does not delete that entry for you). **deemesh does not rename anything in the system and machine tool builder areas (Fanuc `//CNC_MEM/SYSTEM`, `MTB1` and `MTB2`; Mitsubishi `//PRG/FIX` and `//PRG/MMACRO`)** (refused with status `-18` without reaching the machine; see `fileContent`). If the new name matches the entry's current name **including letter case**, though, the same-name check above comes first and the answer is status `0` (a name differing only in case is refused with status `-18`, because the builder-area refusal comes first); nothing is sent to the machine, so nothing changes (the same holds for the three fixed Siemens folders). **The Mitsubishi edit lock (`#8105`, `#1121`) does not prevent renaming**: renaming a program in the locked range and renaming another program into that range were both accepted (confirmed in our test environment; see `fileContent`).
+The **name of the entry** that `ncMemoryPath` points at. Reading returns **the name the machine holds for that entry**, and writing performs a **rename**. The read answers for a file or a folder alike, and rejects a path with nothing at it with status `-18`, the same judgement `entry` makes. Status `-18` means only that nothing is there; a communication error answers its own status. What comes back is the machine's own name, not the string you asked with, so a difference in spelling shows the machine's version. Writes take `{"value": "new name"}`, and path separators are not allowed, common to files/folders. **A root cannot be renamed**: if `ncMemoryPath` is a single segment such as `//CNC_MEM`, `//NC`, `//PRG` or an external drive, the request is refused with status `-18` (filter value error) without touching the machine. A root written with backslashes, such as `\\NC`, is refused the same way. On Siemens, `//NC/Part programs`, `//NC/Subprograms` and `//NC/Workpieces` are not renamed either (the same rule as the delete refusal of `directoryExists`). It refers to the same "entry" as `entry`/`entryList`. **Siemens does not rename the selected main program while the channel is running (not in Reset).** That case answers status `-22` (machine state); reset the channel or try again after the program has ended. Even with every channel in Reset, a refusal of the rename in the current state (`BadInvalidState`) answers status `-22` as well, and the error text then points to an editor or another client holding the file. **A subprogram the look-ahead has opened differs from the delete**: on our test bench, during a run, deleting that subprogram (`fileExists`) answered status `-22` while renaming it was accepted. Rename a subprogram the running program will call while the channel is in Reset. **Fanuc does not rename its selected main program (even when not running), and Mitsubishi does not rename the main program of a part system in automatic operation**; that answers status `-22` (machine state). On Fanuc an entry under protection (parameter `3202#0`/`#4`, or an edit-disable attribute set on the panel), and a rename into a protected number range, also answer status `-22`. On Mitsubishi the rename answers status `-22` while the data protection by operation level (parameter `#1391`) protects program editing (confirmed on the simulator; see `fileContent`). **If the entry to rename does not exist**, all four controls answer status `-18`. The Fanuc data server (`//DATA_SV`) answers the same way, and a file selected there as the main program also answers status `-22` (confirmed on a 31i-B machine tool). An empty new name answers status `-16` (invalid write value) on all four controls. **If the new name is the entry's current name**, nothing is sent to the control; deemesh only checks that the entry exists (success if it does, status `-18` if not), as a file system rename does, and only when the letter case matches too. Mitsubishi's program memory (`//PRG`, `//PRG2`) stores names in upper case, so there a name that differs only in letter case counts as the same name. **If an entry with the new name already exists**, all four controls refuse the request with status `-21` (already exists) and nothing is changed (deemesh does not delete that entry for you). **deemesh does not rename anything in the system and machine tool builder areas (Fanuc `//CNC_MEM/SYSTEM`, `MTB1` and `MTB2`; Mitsubishi `//PRG/FIX` and `//PRG/MMACRO`) or in Heidenhain's `//TNC/table`, `//TNC/system` and `//TNC/config`** (refused with status `-18` without reaching the machine; see `fileContent`). If the new name matches the entry's current name **including letter case**, though, the same-name check above comes first and the answer is status `0` (a name differing only in case is refused with status `-18`, because the builder-area refusal comes first); nothing is sent to the machine, so nothing changes (the same holds for the three fixed Siemens folders). **The Mitsubishi edit lock (`#8105`, `#1121`) does not prevent renaming**: renaming a program in the locked range and renaming another program into that range were both accepted (confirmed in our test environment; see `fileContent`). **On Heidenhain, a rename to a name that differs only in letter case answers status `-21`**: the control treats such names as the same name, so deemesh does not send it. An entry write-protected in the control's file manager and a program that is running (main or subprogram) answer status `-22` (machine state), and the reason says which (confirmed in our test environment).
 
 **On the Fanuc data server (`//DATA_SV`), this write moves the data server's current folder.** The Fanuc functions for data server folders and files take only a name within the current folder, so deemesh first moves to the target's parent folder, calls the function, and leaves the current folder there. That current folder is one per machine and is the same one the operator panel's data server screen uses; the panel shows the changed folder when that screen is opened again (confirmed on a 31i-B machine tool). So **write to one machine's data server from one place only**: if another program or the operator panel moves the folder at the same time, a call that uses a name can reach the same name in a different folder. On a machine where folder and file operations on the data server cannot be done over this connection, the answer is status `-18` (filter value error) and the reason says so (one of our test benches is like this, while its operator panel can do the same operations).
 
@@ -2124,18 +2318,19 @@ The **name of the entry** that `ncMemoryPath` points at. Reading returns **the n
 value_type: "boolean"
 null_able: false
 required_filters: ["ncMemoryPath"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
-write: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
+write: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 ```
 
 Checks whether a **folder** exists at the path (read) and declaratively writes the state (write):
 
-- read → `true` if the folder exists (`false` if only a file of the same name exists). `false` means **only** that it is not there: a communication error or another refusal by the control answers its own status, not `false`. On Mitsubishi a folder path that is too long answers status `-18`, not `false`, with an error text saying the path or name is too long (confirmed on the simulator). On Fanuc, asking about a drive itself such as `//CNC_MEM` answers `true`
+- read → `true` if the folder exists (`false` if only a file of the same name exists). `false` means **only** that it is not there: a communication error or another refusal by the control answers its own status, not `false`. On Mitsubishi a folder path that is too long answers status `-18`, not `false`, with an error text saying the path or name is too long (confirmed on the simulator). On Fanuc, asking about a drive itself such as `//CNC_MEM` answers `true` (so does Heidenhain's `//TNC`)
 - write `{"value": true}` → create the folder (status `-21` (already exists) if it is already there. The Fanuc data server `//DATA_SV/` answers the same: the refusal alone does not tell whether it already exists, so after a refusal deemesh reads the parent folder's list once to tell). On Fanuc, when the number of entries that can be registered is used up, the answer is status `-23` (no room); folders and programs count toward the same number (confirmed on the test bench)
-- write `{"value": false}` → delete the folder. **What is removed differs by machine type**: Fanuc deletes empty folders only and refuses a folder that has contents with status `-17` (handler error) and the vendor's reason. **Siemens deletes the files and subfolders the folder holds along with it** (confirmed on our bench). Check the contents with `entryList` before you delete. If a running channel holds a program inside that folder, Siemens refuses with status `-22` (machine state). **If the folder does not exist the answer is status `-18` (filter value error)** (all three machine types; on the Fanuc data server `//DATA_SV/` the vendor's refusal is returned as it is). **A root cannot be deleted**: if `ncMemoryPath` is a single segment such as `//CNC_MEM`, `//NC`, `//PRG` or an external drive, the request is refused with status `-18` (filter value error) without touching the machine. `\` counts as `/`, so `\\NC` is refused as a root too. A path that does not start with `//`, or that contains `.`, `..` or an empty segment, is refused before that as a spelling error, also with status `-18`. **On Siemens, `//NC/Part programs`, `//NC/Subprograms` and `//NC/Workpieces` are not deleted either** (refused with status `-18` without reaching the machine, whatever the letter case and with or without a trailing `.DIR`). Give an entry inside them instead
+- write `{"value": false}` → delete the folder. **What is removed differs by machine type**: Fanuc and Heidenhain delete empty folders only and refuse a folder that has contents with status `-17` (handler error) and the reason. **Siemens deletes the files and subfolders the folder holds along with it** (confirmed on our bench). Check the contents with `entryList` before you delete. If a running channel holds a program inside that folder, Siemens refuses with status `-22` (machine state). **If the folder does not exist the answer is status `-18` (filter value error)** (all four machine types; on the Fanuc data server `//DATA_SV/` the vendor's refusal is returned as it is). **A root cannot be deleted**: if `ncMemoryPath` is a single segment such as `//CNC_MEM`, `//NC`, `//PRG` or an external drive, the request is refused with status `-18` (filter value error) without touching the machine. `\` counts as `/`, so `\\NC` is refused as a root too. A path that does not start with `//`, or that contains `.`, `..` or an empty segment, is refused before that as a spelling error, also with status `-18`. **On Siemens, `//NC/Part programs`, `//NC/Subprograms` and `//NC/Workpieces` are not deleted either** (refused with status `-18` without reaching the machine, whatever the letter case and with or without a trailing `.DIR`). Give an entry inside them instead
 - **On Fanuc, a folder with an edit-disable attribute set on the panel** cannot be deleted and no folder can be created in it; that answers status `-22` (machine state)
 - **On Fanuc, deemesh does not create or delete folders at or below `//CNC_MEM/SYSTEM`, `MTB1` or `MTB2`** (refused with status `-18` without reaching the machine; see `fileContent`)
 - **On the Mitsubishi NC memory drive, creating or deleting a folder answers status `-20`.** That drive has a fixed directory layout, so the control accepts neither. On the SD card (`//IC1`), creating a folder that is already there answers status `-21`, no room answers status `-23`, deleting a folder that is not empty answers status `-17` (with the reason), and a write-protected card answers status `-22` (not yet confirmed with an SD card). `//PRG/FIX`, `//PRG/MMACRO` and anything below them are refused with status `-18` before reaching the machine (see `fileContent`). Reading works normally
+- **Heidenhain**: creating a folder that is already there answers status `-21`, and a missing parent folder for the new one answers status `-18`. A folder write-protected in the control's file manager cannot be deleted and no folder can be created in it; that answers status `-22` (machine state) with the reason (confirmed in our test environment). A folder in which a program has run keeps the hidden `*.T.DEP` files, so deleting it can answer status `-17` (not empty) even after every file the panel shows is gone (check with `entryList`). What deemesh deletes does not pass through the control's recycle bin and cannot be restored (confirmed with a file in our test environment; the TNC7 User's Manual, 'Basic information', says that what the control's file manager deletes goes to the recycle bin). deemesh does not create or delete folders at or below `//TNC/table`, `//TNC/system` or `//TNC/config` (refused with status `-18` without reaching the machine; see `fileContent`)
 
 A trailing `/` in the path is ignored. For files, use `fileExists`.
 
@@ -2146,16 +2341,16 @@ A trailing `/` in the path is ignored. For files, use `fileExists`.
 value_type: "boolean"
 null_able: false
 required_filters: ["ncMemoryPath"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
-write: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
+write: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 ```
 
 Checks whether a **file** exists at the path (read) and declaratively writes the state (write):
 
 - read → `true` if the file exists (`false` if only a folder of the same name exists). `false` means **only** that it is not there: a communication error or another refusal by the control answers its own status, not `false`. On Mitsubishi a folder path that is too long answers status `-18`, not `false`, with an error text saying the path or name is too long (confirmed on the simulator)
-- write `{"value": false}` → delete the file. **If the file does not exist the answer is status `-18` (filter value error)** (all three machine types). This keeps a mistyped path from passing as a success, so when deleting a file that may already be gone, treat this code as "already gone". The Fanuc data server `//DATA_SV/` does not make this distinction and returns the vendor's refusal as it is
+- write `{"value": false}` → delete the file. **If the file does not exist the answer is status `-18` (filter value error)** (all four machine types). This keeps a mistyped path from passing as a success, so when deleting a file that may already be gone, treat this code as "already gone". The Fanuc data server `//DATA_SV/` does not make this distinction and returns the vendor's refusal as it is
 - write `{"value": true}` → refused with status `-16` (invalid write value): creating an empty file is not supported. Create a file with its content via a `fileContent` write
-- **deemesh does not delete in the system and machine tool builder areas** (Fanuc `//CNC_MEM/SYSTEM`, `MTB1` and `MTB2`; Mitsubishi `//PRG/FIX` and `//PRG/MMACRO`). The request is refused with status `-18` without reaching the machine (see `fileContent`)
+- **deemesh does not delete in the system and machine tool builder areas** (Fanuc `//CNC_MEM/SYSTEM`, `MTB1` and `MTB2`; Mitsubishi `//PRG/FIX` and `//PRG/MMACRO`; Heidenhain `//TNC/table`, `//TNC/system` and `//TNC/config`). The request is refused with status `-18` without reaching the machine (see `fileContent`)
 - **The Mitsubishi edit lock (`#8105`, `#1121`) does not prevent deletion.** Programs in the locked number range are deleted as well (confirmed in our test environment; see `fileContent`)
 - **When Mitsubishi's data protection by operation level protects program editing, the delete answers status `-22` (machine state)** (parameter `#1391`; confirmed on the simulator; see `fileContent`)
 - **On a write-protected SD card on Mitsubishi (`//IC1`), the delete answers status `-22` (machine state)** (not yet confirmed with a write-protected SD card)
@@ -2166,7 +2361,9 @@ A trailing `/` in the path is ignored (the kind is fixed by the address). For fo
 
 **Fanuc does not delete its selected main program (even when not running), and Mitsubishi does not delete the main program of a part system in automatic operation.** The delete answers status `-22` (machine state). On Fanuc a program under protection (parameter `3202#0`/`#4`, or an edit-disable attribute set on the panel) also answers status `-22` on delete. On Fanuc, select another program first; on Mitsubishi, reset the part system or delete after the program has ended. In our test environment both controls deleted a subprogram that was running.
 
-On Siemens, **with the channel in Reset the selected main program can be deleted, and the control then clears the selection.** On our test bench `/machine/channel/mainProgramPath` read `/MPF0` after the delete. Do not assume the same program is still selected after deleting it; select a program again if you need one.
+**Heidenhain does not delete a program that is running (main or subprogram) or one whose run stopped and has not ended** (the TNC7 User's Manual, 'Calling an NC program with PGM CALL', says the programs a running program calls cannot be edited while it runs). That answers status `-22` (machine state). Once the run ended or another program was selected, it was deleted. A file write-protected in the control's file manager also answers status `-22`, and the reason says it is write-protected. A selected program that has not run, or whose run ended, is deleted too, and `/machine/channel/mainProgramPath` still names the deleted path afterwards (confirmed in our test environment). A file deleted through deemesh was not in the control's recycle bin; it cannot be restored, so check before you delete (the manual, 'Basic information', says that what the control's file manager deletes goes to the recycle bin).
+
+On Siemens, **with the channel in Reset the selected main program can be deleted, and the control then clears the selection.** On an 840D sl bench `/machine/channel/mainProgramPath` read an empty string (no program selected) after the delete. Do not assume the same program is still selected after deleting it; select a program again if you need one.
 
 **On the Fanuc data server (`//DATA_SV`), this write moves the data server's current folder.** The Fanuc functions for data server folders and files take only a name within the current folder, so deemesh first moves to the target's parent folder, calls the function, and leaves the current folder there. That current folder is one per machine and is the same one the operator panel's data server screen uses; the panel shows the changed folder when that screen is opened again (confirmed on a 31i-B machine tool). So **write to one machine's data server from one place only**: if another program or the operator panel moves the folder at the same time, a call that uses a name can reach the same name in a different folder. On a machine where folder and file operations on the data server cannot be done over this connection, the answer is status `-18` (filter value error) and the reason says so (one of our test benches is like this, while its operator panel can do the same operations).
 
@@ -2175,20 +2372,21 @@ On Siemens, **with the channel in Reset the selected main program can be deleted
 value_type: "string"
 null_able: false
 required_filters: ["ncMemoryPath"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
-write: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
+write: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 ```
 
 Reads the **content** of an NC file (download) and writes it (upload: creates the file if absent; what happens when it already exists depends on the control, see below). The value is a string (program text).
 
 - **Fanuc write auto-handling**: if `%` is absent, it is inserted automatically; if there is no leading O number/`<name>`, it is inserted automatically based on the path's file name; if the last block does not end with a line break, one is added (without it the last block was stored like `M30%` and the program stopped at that block with alarm `SR5010`; seen on a 31i-B machine tool). The saved file name is **based on the O number/name in the content**
-- **Siemens and Mitsubishi write the content verbatim.** Nothing is inserted, and the saved file name is **the file name in the path**: the file is stored under the path even when the O number in the content differs (the opposite of Fanuc). Include `%` or an O number yourself if you need them
-- **Writing to a file that already exists**: on Fanuc, when parameter `3201#2` (REP) is `1` the existing program is deleted and the new one registered (with `0` the answer is status `-21` (already exists) and the existing program is untouched; to replace it, write `false` to `fileExists` first and then upload, or set `3201#2` to `1`; parameter manual B-64490EN). Mitsubishi overwrites (confirmed on the simulator). **Siemens does not overwrite: the write answers status `-21` (already exists) and the existing content is untouched** (confirmed on the test bench). To replace it, write `false` to `fileExists` first and then upload. deemesh does not delete and recreate on your behalf, because if the creation failed the original would be gone. That decision belongs to the caller
+- **Siemens, Mitsubishi and Heidenhain write the content verbatim.** Nothing is inserted, and the saved file name is **the file name in the path**: the file is stored under the path even when the O number in the content differs (the opposite of Fanuc). Include `%` or an O number yourself if you need them
+- **Writing to a file that already exists**: on Fanuc, when parameter `3201#2` (REP) is `1` the existing program is deleted and the new one registered (with `0` the answer is status `-21` (already exists) and the existing program is untouched; to replace it, write `false` to `fileExists` first and then upload, or set `3201#2` to `1`; parameter manual B-64490EN). Mitsubishi and Heidenhain overwrite (confirmed in our test environments). **Siemens does not overwrite: the write answers status `-21` (already exists) and the existing content is untouched** (confirmed on the test bench). To replace it, write `false` to `fileExists` first and then upload. deemesh does not delete and recreate on your behalf, because if the creation failed the original would be gone. That decision belongs to the caller
 - **Mitsubishi edit lock**: with parameter `#8105` (edit lock B) at `1`, programs 8000 to 9999, and with `#1121` (edit lock C) at `1`, programs 9000 to 9999, cannot be created or overwritten, and the write is refused with status `-22` (machine state) (reference manual IB-1501209). The existing content is untouched. In our test environment the lock applied to writing only: reading, selecting, renaming and deleting those programs were accepted regardless of it
 - **Mitsubishi data protection by operation level**: when parameter `#1391` is `1` and the change level set for "Program edit" on the operator panel's protection setting screen (Mainte > Protect setting) is above the current operation level, the write is refused with status `-22` (machine state) and the existing content is untouched (confirmed on the simulator). Raise the operation level on the operator panel with that level's password, then write again. Renames (`entryName`) and deletes (`fileExists`) behave the same, and reads were not blocked
 - **A write-protected SD card on Mitsubishi (`//IC1`)**: the write is refused with status `-22` (machine state). This is not yet confirmed with a write-protected SD card
 - **Protection on Fanuc**: a program protected by parameter `3202#0`/`#4` (editing of O8000 to O8999 and O9000 to O9999 inhibited) or by an edit-disable attribute set on the panel (folder or file) is refused for writing (including creating it) with status `-22` (machine state). The `3202` protection also refuses reading with status `-22` when `3202#6` (PSR) is `0` (with `1` the program can be read, as confirmed on a 31i bench), while the edit-disable attribute does not block reading (confirmed in our test environment). Ask the person responsible for the machine whether the protection may be lifted
 - **A program the control is using, on Fanuc and Mitsubishi**: Fanuc does not overwrite its selected main program (even when not running) and Mitsubishi does not overwrite the main program of a part system in automatic operation; the write is refused with status `-22` (machine state). On Fanuc this refusal applies when `3201#2` (REP) is `1`; with `0` the status `-21` (already exists) above comes first (confirmed in our test environment). On Fanuc, select another program first; on Mitsubishi, reset the part system or write again after the program has ended. In our test environment neither control refused overwriting a subprogram that was running
+- **A program the control is using, and write protection, on Heidenhain**: a running program, whether the main or a subprogram not yet called, is not overwritten, and the write answers status `-22` (machine state). Overwriting a file write-protected in the control's file manager, or creating one in a write-protected folder, also answers status `-22`, and the reason says it is write-protected. A missing folder, or a path that is a folder, answers status `-18` (confirmed in our test environment). HEIDENHAIN DNC transfers files through files on the PC, so for every read and write deemesh creates a file in the PC's temporary folder and deletes it right after. The bytes sent were stored and read back unchanged (including UTF-8 Korean text and CRLF, in our test environment). The TNC7 User's Manual ('Converting files') says the control can adapt imported files depending on the machine manufacturer's settings (removing umlauts, for example); whether a HEIDENHAIN DNC transfer counts as such an import has not been confirmed. The `BEGIN PGM` and `END PGM` lines of a conversational program are inserted by the control's editor but not by deemesh, so include them in the value. Use letters, digits, `_` and `-` in file names, and keep the path within 255 characters (manual, 'Basic information')
 - **When there is no room**: if the NC memory is short or the number of programs that can be registered is used up, the write answers status `-23` (no room) (confirmed on the test bench for Fanuc and on the simulator for Mitsubishi). Delete programs you no longer need and upload again. Overwriting an existing program works even when that number is used up (confirmed on Mitsubishi). On Fanuc, folders count toward the same number. On Mitsubishi `//PRG2`, a full count cannot be told apart and the write answers status `-17`. **When Fanuc runs out of memory, it registers as much as fit, cut at a block, under the O number/name in the content.** Only the final `M30` is missing, so it looks like a complete program; deemesh checks that the program is the start of what was sent, deletes it and says so in the error text. If `3201#2` (REP) is `1`, an existing program of that name had already been replaced by the control and is gone as well. With no free space at all the control changes nothing, and an existing program stays as it was. If deemesh cannot check or delete the program, the error text says so; check it before running it
 - **On Fanuc, when the content is not in a valid format**: the control raises an alarm (for example `BG1090`) and may register what it accepted so far under that name. deemesh answers status `-16` (invalid write value) and puts the alarm code in the error text; fix the content and upload again. If the name was not in the folder before the upload, deemesh deletes the program the control kept and says so in the error text. If the name was already there, deemesh does not delete it: with `3201#2` (REP) at `1` the existing program may have been replaced by what the control accepted, so check it before running it (with `0` the answer is status `-21` and the existing program stays as it was). The alarm needs RESET on the operator panel, but other uploads are accepted before it is cleared. To tell these cases apart, deemesh reads the folder's list once before each upload to Fanuc (the alarm and the leftover program were seen on a machine tool and on the simulator, and deemesh's cleanup was confirmed in CNC memory on the simulator and on a machine tool's data server)
 - **Creating a file under a name a channel is using, on Siemens**: if a channel holds that name (the selected main program, or a subprogram that is running or that the look-ahead has opened; typically when re-creating a file right after deleting it), the file is created but the `Open` that would write its content answers status `-22` (machine state). Even with every channel in Reset, a refusal of that `Open` in the current state (`BadInvalidState`) answers status `-22` as well, and the error text then points to an editor or another client holding the file. In either case deemesh **deletes the empty file it just created within the same call** (back to the state before the call). If the channel holds even that empty file so it cannot be removed, the error text says so; delete it once the channel releases it
@@ -2196,8 +2394,9 @@ Reads the **content** of an NC file (download) and writes it (upload: creates th
 - **deemesh does not write to the system and machine tool builder areas.** The request is refused with status `-18` without reaching the machine, and reading works (the same applies to `fileExists`, `entryName` and `directoryExists`). A wrong change there can alter how the machine behaves or leave it unusable, so these areas are blocked whatever the machine's protection settings are
   - Fanuc: `//CNC_MEM/SYSTEM`, `//CNC_MEM/MTB1` and `//CNC_MEM/MTB2` (the system and machine tool builder macro folders; G, M and T code macro calls look programs up there, Operator's Manual B-64484EN). `//CNC_MEM/USER/LIBRARY` is a shared user folder and is not blocked
   - Mitsubishi: `//PRG/FIX` (fixed cycles) and `//PRG/MMACRO` (machine tool builder macros). The operator panel also opens this area for editing only with parameter `#1166` switched on
+  - Heidenhain: `//TNC/table` (tool table, presets and the like), `//TNC/system` and `//TNC/config`, and everything below them. They hold files the control uses under names it relies on, so a wrong delete or overwrite can leave the machine unusable. These folders also hold subfolders the TNC7 User's Manual names as places for user files (`system/PGM-Templates`, `system/Toolkinematics`, `system/3D-ToolComp`, freely definable tables in `table` and so on), but deemesh does not upload there; handle those on the control
 
-**A write's `status` 0 means the transfer is complete.** On all three controls deemesh checks the control's return value for every chunk and then confirms the close before answering 0 (Fanuc `cnc_download4` and `cnc_dwnend4`, Siemens `Write` and `Close`, Mitsubishi `WriteFile` and `CloseFile3`). A failure midway is an error; Mitsubishi discards the file, Siemens removes the partly created one, and Fanuc removes a program cut short by a memory shortage (see above). On Mitsubishi, when the final close is refused (for example, when the NC memory is short), the control leaves an incomplete temporary file in the target folder (its name starts with `~`; confirmed on the simulator); deemesh deletes it and says so in the error text. If it cannot check or delete it, the error text says so: find that file in the listing and delete it by writing `false` to `fileExists`. It is not a finished program. So **there is no need to read the file back to confirm the transfer.** A byte comparison after reading back differs on Fanuc anyway, because of the inserted `%` and O number and the line-ending normalization, and the listing's `sizeBytes` on Fanuc is an allocation size in 500-byte units (writing 22 bytes lists `500`), not the content length (confirmed in our tests). That is why this address puts no size or hash in the write response: a size means different things per control, and a hash cannot be produced without reading back, which only moves that cost inside. If you need to verify content, read `fileContent` and compare by **meaning** (program number, blocks).
+**A write's `status` 0 means the transfer is complete.** On all three controls deemesh checks the control's return value for every chunk and then confirms the close before answering 0 (Fanuc `cnc_download4` and `cnc_dwnend4`, Siemens `Write` and `Close`, Mitsubishi `WriteFile` and `CloseFile3`). Heidenhain answers 0 after its single file transfer (`TransmitFile`) has finished. A failure midway is an error; Mitsubishi discards the file, Siemens removes the partly created one, and Fanuc removes a program cut short by a memory shortage (see above). On Mitsubishi, when the final close is refused (for example, when the NC memory is short), the control leaves an incomplete temporary file in the target folder (its name starts with `~`; confirmed on the simulator); deemesh deletes it and says so in the error text. If it cannot check or delete it, the error text says so: find that file in the listing and delete it by writing `false` to `fileExists`. It is not a finished program. So **there is no need to read the file back to confirm the transfer.** A byte comparison after reading back differs on Fanuc anyway, because of the inserted `%` and O number and the line-ending normalization, and the listing's `sizeBytes` on Fanuc is an allocation size in 500-byte units (writing 22 bytes lists `500`), not the content length (confirmed in our tests). That is why this address puts no size or hash in the write response: a size means different things per control, and a hash cannot be produced without reading back, which only moves that cost inside. If you need to verify content, read `fileContent` and compare by **meaning** (program number, blocks).
 
 ## /machine/channel/toolOffsetCount
 ```yaml
@@ -2304,7 +2503,7 @@ The **M-type (machining center) tool length geometry** value (the H column on th
 
 Returns `float` (a real distance); both read and write are supported; write `{"value": 125.0}`. Requires the `channel` + `toolOffset` filters. If the machine's offset screen has no such column, status `-20` is returned; on Mitsubishi that includes a machine whose compensation memory is **not split into columns**, where the error string points you at `toolOffsetValue` instead. The Fanuc adapter does not support `toolOffsetValue`, so no such pointer appears there; the FOCAS2 specification has the value of an offset memory without a length/radius split (memory A or B) addressed through the cutter-radius columns (`toolRadius…`), but we have not confirmed this on a machine with that configuration. The **applied value is geometry + wear**.
 
-The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address.
+The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address. **Fanuc fixes the decimal places of this value at connect, so reconnect after changing a unit setting such as `G20`/`G21`** (in the SDK `deemesh_disconnect` then `deemesh_connect`; on the hub `POST /admin/reload`). Until then it is read and written with the old decimal places and can be off by a factor of 10.
 
 **On Mitsubishi** this is one of the four columns of a machine whose compensation memory is split into geometry/wear and length/radius (type II; checked in our test environment against the Length, L wear, Radius and R wear cells on the operator panel). A written value is rounded to the places of the setting unit `#1003`, and a value the control does not accept (outside its setting range) answers status `-16`. While data protect key 1 (PLC signal `*KEY1`, `Y708`, which protects tool data and coordinate data) is off, the write answers status `-22` (machine state); turn the key on and write again (confirmed for the same write call on a simulator in a lathe configuration; deemesh tells this case apart by reading that signal after the refusal). Writes are accepted during automatic operation as well (confirmed on a simulator in this configuration).
 
@@ -2323,7 +2522,7 @@ The **M-type tool length wear** value (the H column on the offset screen). The f
 
 Returns `float` (a real distance); both read and write are supported; write `{"value": 125.0}`. Requires the `channel` + `toolOffset` filters. If the machine's offset screen has no such column, status `-20` is returned; on Mitsubishi that includes a machine whose compensation memory is **not split into columns**, where the error string points you at `toolOffsetValue` instead. The Fanuc adapter does not support `toolOffsetValue`, so no such pointer appears there; the FOCAS2 specification has the value of an offset memory without a length/radius split (memory A or B) addressed through the cutter-radius columns (`toolRadius…`), but we have not confirmed this on a machine with that configuration. The **applied value is geometry + wear**.
 
-The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address.
+The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address. **Fanuc fixes the decimal places of this value at connect, so reconnect after changing a unit setting such as `G20`/`G21`** (in the SDK `deemesh_disconnect` then `deemesh_connect`; on the hub `POST /admin/reload`). Until then it is read and written with the old decimal places and can be off by a factor of 10.
 
 **On Mitsubishi** this is one of the four columns of a machine whose compensation memory is split into geometry/wear and length/radius (type II; checked in our test environment against the Length, L wear, Radius and R wear cells on the operator panel). A written value is rounded to the places of the setting unit `#1003`, and a value the control does not accept (outside its setting range) answers status `-16`. While data protect key 1 (PLC signal `*KEY1`, `Y708`, which protects tool data and coordinate data) is off, the write answers status `-22` (machine state); turn the key on and write again (confirmed for the same write call on a simulator in a lathe configuration; deemesh tells this case apart by reading that signal after the refusal). Writes are accepted during automatic operation as well (confirmed on a simulator in this configuration).
 
@@ -2342,7 +2541,7 @@ The **M-type tool radius geometry** value (the D column on the offset screen). T
 
 Returns `float` (a real distance); both read and write are supported; write `{"value": 125.0}`. Requires the `channel` + `toolOffset` filters. If the machine's offset screen has no such column, status `-20` is returned; on Mitsubishi that includes a machine whose compensation memory is **not split into columns**, where the error string points you at `toolOffsetValue` instead. The Fanuc adapter does not support `toolOffsetValue`, so no such pointer appears there; the FOCAS2 specification has the value of an offset memory without a length/radius split (memory A or B) addressed through the cutter-radius columns (`toolRadius…`), but we have not confirmed this on a machine with that configuration. On a Fanuc machining center with the tool offset for milling and turning function active, this address answers status `-20` for both read and write: in that configuration the offset columns are numbered differently (FOCAS2 specification), so this address would point at another column, and since we have not confirmed it on such a machine the address is blocked there. `toolLengthGeometry` and `toolLengthWear` are unaffected. The **applied value is geometry + wear**.
 
-The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address.
+The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address. **Fanuc fixes the decimal places of this value at connect, so reconnect after changing a unit setting such as `G20`/`G21`** (in the SDK `deemesh_disconnect` then `deemesh_connect`; on the hub `POST /admin/reload`). Until then it is read and written with the old decimal places and can be off by a factor of 10.
 
 **The number can differ from what the machine's screen shows.** This value is a **radius**, but an offset screen may be configured to display and accept **diameters**. deemesh emits what the machine stores and does not convert.
 
@@ -2363,7 +2562,7 @@ The **M-type tool radius wear** value (the D column on the offset screen). Refle
 
 Returns `float` (a real distance); both read and write are supported; write `{"value": 125.0}`. Requires the `channel` + `toolOffset` filters. If the machine's offset screen has no such column, status `-20` is returned; on Mitsubishi that includes a machine whose compensation memory is **not split into columns**, where the error string points you at `toolOffsetValue` instead. The Fanuc adapter does not support `toolOffsetValue`, so no such pointer appears there; the FOCAS2 specification has the value of an offset memory without a length/radius split (memory A or B) addressed through the cutter-radius columns (`toolRadius…`), but we have not confirmed this on a machine with that configuration. On a Fanuc machining center with the tool offset for milling and turning function active, this address answers status `-20` for both read and write: in that configuration the offset columns are numbered differently (FOCAS2 specification), so this address would point at another column, and since we have not confirmed it on such a machine the address is blocked there. `toolLengthGeometry` and `toolLengthWear` are unaffected. The **applied value is geometry + wear**.
 
-The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address.
+The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address. **Fanuc fixes the decimal places of this value at connect, so reconnect after changing a unit setting such as `G20`/`G21`** (in the SDK `deemesh_disconnect` then `deemesh_connect`; on the hub `POST /admin/reload`). Until then it is read and written with the old decimal places and can be off by a factor of 10.
 
 **The number can differ from what the machine's screen shows.** This value is a **radius**, but an offset screen may be configured to display and accept **diameters**. deemesh emits what the machine stores and does not convert.
 
@@ -2384,7 +2583,7 @@ The **T-type (lathe) X-direction tool dimension geometry** value. Here X is not 
 
 Returns `float` (a real distance); both read and write are supported; write `{"value": 125.0}`. Requires the `channel` + `toolOffset` filters. If the machine's offset screen has no such column, status `-20` is returned; that includes a machine whose compensation memory is not laid out for a lathe, where the error string names the leaves that do work there. On Fanuc, the FOCAS2 specification has the value of an offset memory without a geometry/wear split (memory A) addressed through the wear columns (`…Wear`), but we have not confirmed this on a machine with that configuration. The **applied value is geometry + wear**.
 
-The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address.
+The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address. **Fanuc fixes the decimal places of this value at connect, so reconnect after changing a unit setting such as `G20`/`G21`** (in the SDK `deemesh_disconnect` then `deemesh_connect`; on the hub `POST /admin/reload`). Until then it is read and written with the old decimal places and can be off by a factor of 10.
 
 **On Mitsubishi** this is a column of a machine whose compensation memory is laid out for a lathe. A written value is rounded to the places of the setting unit `#1003`, and a value the control does not accept (outside its setting range) answers status `-16`. While data protect key 1 (PLC signal `*KEY1`, `Y708`, which protects tool data and coordinate data) is off, the write answers status `-22` (machine state); turn the key on and write again (confirmed on a simulator in a lathe configuration; deemesh tells this case apart by reading that signal after the refusal). Writes are accepted during automatic operation as well (confirmed for the same write call on a simulator in a machining center configuration).
 
@@ -2403,7 +2602,7 @@ The **T-type X-direction tool dimension wear** value. The X-direction compensati
 
 Returns `float` (a real distance); both read and write are supported; write `{"value": 125.0}`. Requires the `channel` + `toolOffset` filters. If the machine's offset screen has no such column, status `-20` is returned; that includes a machine whose compensation memory is not laid out for a lathe, where the error string names the leaves that do work there. On Fanuc, the FOCAS2 specification has the value of an offset memory without a geometry/wear split (memory A) addressed through the wear columns (`…Wear`), but we have not confirmed this on a machine with that configuration. The **applied value is geometry + wear**.
 
-The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address.
+The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address. **Fanuc fixes the decimal places of this value at connect, so reconnect after changing a unit setting such as `G20`/`G21`** (in the SDK `deemesh_disconnect` then `deemesh_connect`; on the hub `POST /admin/reload`). Until then it is read and written with the old decimal places and can be off by a factor of 10.
 
 **On Mitsubishi** this is a column of a machine whose compensation memory is laid out for a lathe. A written value is rounded to the places of the setting unit `#1003`, and a value the control does not accept (outside its setting range) answers status `-16`. While data protect key 1 (PLC signal `*KEY1`, `Y708`, which protects tool data and coordinate data) is off, the write answers status `-22` (machine state); turn the key on and write again (confirmed on a simulator in a lathe configuration; deemesh tells this case apart by reading that signal after the refusal). Writes are accepted during automatic operation as well (confirmed for the same write call on a simulator in a machining center configuration).
 
@@ -2422,7 +2621,7 @@ The **T-type Z-direction tool dimension geometry** value. Like X, this is a fixe
 
 Returns `float` (a real distance); both read and write are supported; write `{"value": 125.0}`. Requires the `channel` + `toolOffset` filters. If the machine's offset screen has no such column, status `-20` is returned; that includes a machine whose compensation memory is not laid out for a lathe, where the error string names the leaves that do work there. On Fanuc, the FOCAS2 specification has the value of an offset memory without a geometry/wear split (memory A) addressed through the wear columns (`…Wear`), but we have not confirmed this on a machine with that configuration. The **applied value is geometry + wear**.
 
-The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address.
+The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address. **Fanuc fixes the decimal places of this value at connect, so reconnect after changing a unit setting such as `G20`/`G21`** (in the SDK `deemesh_disconnect` then `deemesh_connect`; on the hub `POST /admin/reload`). Until then it is read and written with the old decimal places and can be off by a factor of 10.
 
 **On Mitsubishi** this is a column of a machine whose compensation memory is laid out for a lathe. A written value is rounded to the places of the setting unit `#1003`, and a value the control does not accept (outside its setting range) answers status `-16`. While data protect key 1 (PLC signal `*KEY1`, `Y708`, which protects tool data and coordinate data) is off, the write answers status `-22` (machine state); turn the key on and write again (confirmed on a simulator in a lathe configuration; deemesh tells this case apart by reading that signal after the refusal). Writes are accepted during automatic operation as well (confirmed for the same write call on a simulator in a machining center configuration).
 
@@ -2441,7 +2640,7 @@ The **T-type Z-direction tool dimension wear** value.
 
 Returns `float` (a real distance); both read and write are supported; write `{"value": 125.0}`. Requires the `channel` + `toolOffset` filters. If the machine's offset screen has no such column, status `-20` is returned; that includes a machine whose compensation memory is not laid out for a lathe, where the error string names the leaves that do work there. On Fanuc, the FOCAS2 specification has the value of an offset memory without a geometry/wear split (memory A) addressed through the wear columns (`…Wear`), but we have not confirmed this on a machine with that configuration. The **applied value is geometry + wear**.
 
-The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address.
+The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address. **Fanuc fixes the decimal places of this value at connect, so reconnect after changing a unit setting such as `G20`/`G21`** (in the SDK `deemesh_disconnect` then `deemesh_connect`; on the hub `POST /admin/reload`). Until then it is read and written with the old decimal places and can be off by a factor of 10.
 
 **On Mitsubishi** this is a column of a machine whose compensation memory is laid out for a lathe. A written value is rounded to the places of the setting unit `#1003`, and a value the control does not accept (outside its setting range) answers status `-16`. While data protect key 1 (PLC signal `*KEY1`, `Y708`, which protects tool data and coordinate data) is off, the write answers status `-22` (machine state); turn the key on and write again (confirmed on a simulator in a lathe configuration; deemesh tells this case apart by reading that signal after the refusal). Writes are accepted during automatic operation as well (confirmed for the same write call on a simulator in a machining center configuration).
 
@@ -2462,7 +2661,7 @@ The **T-type Y-direction tool dimension geometry** value: the **third column** a
 
 Returns `float` (a real distance); both read and write are supported; write `{"value": 125.0}`. Requires the `channel` + `toolOffset` filters. If the machine's offset screen has no such column, status `-20` is returned; that includes a machine whose compensation memory is not laid out for a lathe, where the error string names the leaves that do work there. On Fanuc, the FOCAS2 specification has the value of an offset memory without a geometry/wear split (memory A) addressed through the wear columns (`…Wear`), but we have not confirmed this on a machine with that configuration. The **applied value is geometry + wear**.
 
-The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address.
+The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address. **Fanuc fixes the decimal places of this value at connect, so reconnect after changing a unit setting such as `G20`/`G21`** (in the SDK `deemesh_disconnect` then `deemesh_connect`; on the hub `POST /admin/reload`). Until then it is read and written with the old decimal places and can be off by a factor of 10.
 
 **On Mitsubishi** this is a column of a machine whose compensation memory is laid out for a lathe. A written value is rounded to the places of the setting unit `#1003`, and a value the control does not accept (outside its setting range) answers status `-16`. While data protect key 1 (PLC signal `*KEY1`, `Y708`, which protects tool data and coordinate data) is off, the write answers status `-22` (machine state); turn the key on and write again (confirmed on a simulator in a lathe configuration; deemesh tells this case apart by reading that signal after the refusal). Writes are accepted during automatic operation as well (confirmed for the same write call on a simulator in a machining center configuration).
 
@@ -2481,7 +2680,7 @@ The **T-type Y-direction tool dimension wear** value. The **third column** after
 
 Returns `float` (a real distance); both read and write are supported; write `{"value": 125.0}`. Requires the `channel` + `toolOffset` filters. If the machine's offset screen has no such column, status `-20` is returned; that includes a machine whose compensation memory is not laid out for a lathe, where the error string names the leaves that do work there. On Fanuc, the FOCAS2 specification has the value of an offset memory without a geometry/wear split (memory A) addressed through the wear columns (`…Wear`), but we have not confirmed this on a machine with that configuration. The **applied value is geometry + wear**.
 
-The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address.
+The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address. **Fanuc fixes the decimal places of this value at connect, so reconnect after changing a unit setting such as `G20`/`G21`** (in the SDK `deemesh_disconnect` then `deemesh_connect`; on the hub `POST /admin/reload`). Until then it is read and written with the old decimal places and can be off by a factor of 10.
 
 **On Mitsubishi** this is a column of a machine whose compensation memory is laid out for a lathe. A written value is rounded to the places of the setting unit `#1003`, and a value the control does not accept (outside its setting range) answers status `-16`. While data protect key 1 (PLC signal `*KEY1`, `Y708`, which protects tool data and coordinate data) is off, the write answers status `-22` (machine state); turn the key on and write again (confirmed on a simulator in a lathe configuration; deemesh tells this case apart by reading that signal after the refusal). Writes are accepted during automatic operation as well (confirmed for the same write call on a simulator in a machining center configuration).
 
@@ -2500,7 +2699,7 @@ The **T-type nose radius geometry** value. Consulted by nose-radius compensation
 
 Returns `float` (a real distance); both read and write are supported; write `{"value": 125.0}`. Requires the `channel` + `toolOffset` filters. If the machine's offset screen has no such column, status `-20` is returned; that includes a machine whose compensation memory is not laid out for a lathe, where the error string names the leaves that do work there. On Fanuc, the FOCAS2 specification has the value of an offset memory without a geometry/wear split (memory A) addressed through the wear columns (`…Wear`), but we have not confirmed this on a machine with that configuration. The **applied value is geometry + wear**.
 
-The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address.
+The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address. **Fanuc fixes the decimal places of this value at connect, so reconnect after changing a unit setting such as `G20`/`G21`** (in the SDK `deemesh_disconnect` then `deemesh_connect`; on the hub `POST /admin/reload`). Until then it is read and written with the old decimal places and can be off by a factor of 10.
 
 **On Mitsubishi** this is a column of a machine whose compensation memory is laid out for a lathe. A written value is rounded to the places of the setting unit `#1003`, and a value the control does not accept (outside its setting range) answers status `-16`. While data protect key 1 (PLC signal `*KEY1`, `Y708`, which protects tool data and coordinate data) is off, the write answers status `-22` (machine state); turn the key on and write again (confirmed on a simulator in a lathe configuration; deemesh tells this case apart by reading that signal after the refusal). Writes are accepted during automatic operation as well (confirmed for the same write call on a simulator in a machining center configuration).
 
@@ -2519,7 +2718,7 @@ The **T-type nose radius wear** value.
 
 Returns `float` (a real distance); both read and write are supported; write `{"value": 125.0}`. Requires the `channel` + `toolOffset` filters. If the machine's offset screen has no such column, status `-20` is returned; that includes a machine whose compensation memory is not laid out for a lathe, where the error string names the leaves that do work there. On Fanuc, the FOCAS2 specification has the value of an offset memory without a geometry/wear split (memory A) addressed through the wear columns (`…Wear`), but we have not confirmed this on a machine with that configuration. The **applied value is geometry + wear**.
 
-The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address.
+The unit follows the machine setting (mm or inch). Read `/machine/channel/gModalCategory/gModal?gModalCategory=4` to find out which: `G21`/`G71`/`G710` means metric, `G20`/`G70`/`G700` means inch. On Siemens, `G70`/`G71` switch only coordinates while feedrates, tool offsets and work offsets stay in the basic system (`MD10240`); `G700`/`G710` switch those as well (Programming Manual). This address carries no `unit` field, because the unit is not fixed per address. **Fanuc fixes the decimal places of this value at connect, so reconnect after changing a unit setting such as `G20`/`G21`** (in the SDK `deemesh_disconnect` then `deemesh_connect`; on the hub `POST /admin/reload`). Until then it is read and written with the old decimal places and can be off by a factor of 10.
 
 **On Mitsubishi** this is a column of a machine whose compensation memory is laid out for a lathe. A written value is rounded to the places of the setting unit `#1003`, and a value the control does not accept (outside its setting range) answers status `-16`. While data protect key 1 (PLC signal `*KEY1`, `Y708`, which protects tool data and coordinate data) is off, the write answers status `-22` (machine state); turn the key on and write again (confirmed on a simulator in a lathe configuration; deemesh tells this case apart by reading that signal after the refusal). Writes are accepted during automatic operation as well (confirmed for the same write call on a simulator in a machining center configuration).
 
@@ -2550,13 +2749,13 @@ The lathe tool's **virtual tool-tip position code** (read + write). A code that 
 value_type: "int"
 null_able: false
 required_filters: ["channel"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
 The number (`T`) of the tool that is currently active in that channel. `channel` filter. Returns `int`.
 
-**What makes a tool "active" differs by machine type.** On Fanuc and Mitsubishi this is the `T` modal, so it changes **the moment `T` is programmed**; on Siemens it is `actTNumber`, so it changes **only once the change has completed**:
+**What makes a tool "active" differs by machine type.** On Fanuc and Mitsubishi this is the `T` modal, so it changes **the moment `T` is programmed**; on Siemens it is `actTNumber`, so it changes **only once the change has completed** (so does Heidenhain; see the Heidenhain paragraph below):
 
 | Situation | Fanuc, Mitsubishi | Siemens |
 |---|---|---|
@@ -2567,7 +2766,7 @@ The number (`T`) of the tool that is currently active in that channel. `channel`
 
 The first two were confirmed - the value reads `7` immediately after programming `T7` with no `M06`, and on Mitsubishi the control's own tool display was observed still showing the previous tool. A reset (`M30`) does not clear it either. On Fanuc this was checked again on **our 31i bench, which runs a real tool-change macro**: the dwell after a block holding only `T` already showed that number (with `M06` not yet executed), it was the same after the change completed, and a second `T` changed it at that block too. The value survived the program's `M30`.
 
-**So on Fanuc and Mitsubishi this value must not be read as "the tool that is cutting right now"**; it is the commanded tool. If the moment of the change matters, do not use this address as a change signal. Watch the machine's own change-complete signal. The tool actually held in the spindle is not reachable through the SDK on those two: the tool number shown on the control is produced by the machine builder's ladder, so it differs per machine, and it resists neutralization for the same reason `plcAddress` does.
+**So on Fanuc and Mitsubishi this value must not be read as "the tool that is cutting right now"**; it is the commanded tool. If the moment of the change matters, do not use this address as a change signal. Watch the machine's own change-complete signal. The tool actually held in the spindle is not available from a named address on those two: the tool number shown on the control is produced by the machine builder's ladder, so it differs per machine, and it resists neutralization for the same reason `plcAddress` does. If you know the PMC address that holds the number, though, `/machine/plcAddress/plcType/plcValue` reads it. The `HD.T` (spindle tool) and `NX.T` (next tool) on a Fanuc control's screen are such values: they are shown instead of the T modal on a machine where parameters `3108#2` and `13200#1` are `1`, and the machine builder's ladder puts the numbers there through a PMC window function (PMC Programming Manual B-64513EN §5.4.26). Ask the machine builder for the PMC address where its ladder keeps them (confirmed on a 31i-B machine tool with that setting, where this address stayed the T modal, `0`).
 
 ⚠️ **With the Fanuc Tool Management option enabled, this value is not a tool number.** Under that option `T` does not name a tool: it names a **tool type (group) number**, and the control picks an actual tool of that type. Confirmed on our 31i bench: with the control's `EACH TOOL DATA` listing tool `1` as type `4`, programming `T4` made this address read `4` while the actual tool was `1`. On a machine without the option `T` is the tool number and the question does not arise. If your machine uses the option, do not feed this value straight into the tool tree lookup below. Instead, the entries of `/machine/toolArea/toolList` whose `toolTNumber` equals this value are the candidate tools, and `/machine/toolArea/tool/toolTNumber` answers it per tool.
 
@@ -2581,21 +2780,24 @@ Put this number into the `tool` filter of the tool tree to look up that tool's n
 
 Fanuc reads the `T` modal, Siemens `actTNumber` (`$P_TOOLNO`: the T number of the tool with which the active D offset was calculated), and Mitsubishi the T command modal from `GetCommand2`.
 
+**Heidenhain** returns the tool number in the pocket table's spindle row (`0.0`, shown as `Spindle` on the control's tool management screen). Like Siemens, it changes **after the change has completed** (on the simulator it became `5` once `TOOL CALL 5` finished). An empty spindle is `0`, and when the spindle row is not found in the pocket table the status is `-20` (this address does not work on that machine). With an index tool (such as `10.1`) in the spindle it still gives only the tool number (`10`), because the spindle row of the pocket table holds only the number (confirmed in our test environment; the control showed `10.1`).
+
 ## /machine/channel/activeToolName
 ```yaml
 value_type: "string"
 null_able: false
 required_filters: ["channel"]
-read: ["nc_opcua_siemens"]
+read: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
 write: []
 ```
 
 The **name** of the tool that is currently active in that channel. `channel` filter. Returns `string`.
 
-**Siemens only** (`actToolIdent`). The other two controls answer status `-20`.
+**Siemens (`actToolIdent`) and Heidenhain report it.** Fanuc and Mitsubishi answer status `-20`.
 
 - **Fanuc**: the tool management record has no name field (which is also why `toolName` in `/machine/toolArea/toolList` is an empty string on Fanuc). The tool geometry size data does carry `/machine/channel/toolOffset/toolName`, but that table is indexed by **tool offset number**, so resolving it to the active tool's name would mean inventing a correspondence that does not exist.
 - **Mitsubishi**: the tool management table does have a name field, but that control's `activeToolNumber` is the `T` modal (the number that was commanded), which is not guaranteed to be a row in that table.
+- **Heidenhain**: the tool table name of the tool in the spindle (the spindle row of the pocket table). It is the same field as `/machine/toolArea/tool/toolName`, so a renamed tool shows its new name at once. The pocket table has a name field too, but it did not follow a renamed tool, so it is not used (confirmed in our test environment). **When the tool in the spindle has index rows (such as `10.1`), the status is `-22`.** Each index row has its own name, but the spindle row of the pocket table holds only the tool number, so which row is in the spindle cannot be told (on the simulator the spindle row still read `10` after `10.1` was called, while the control showed `10.1`). The same applies when the tool's own row (`10`) was called, and the name comes back once a tool without index rows is in the spindle. `activeToolNumber` gives the number.
 
 **It is the partner of `activeToolNumber`, and there is a reason for having both.** On a SINUMERIK with tool management (WZV) the `T` in a part program names the tool. Take the number and write `T3` and the control refuses it (alarm `17190`, illegal T number, on our 840D sl bench). This address gives the value you can put in a program; `activeToolNumber` gives the value that addresses our tool tree (the `tool` filter of `/machine/toolArea/tool/…`).
 
@@ -2604,11 +2806,11 @@ activeToolName   -> "CUTTER 10"   in a program: T="CUTTER 10"
 activeToolNumber -> 3             toolArea/tool/*?tool=3
 ```
 
-The two are in the same group, so asking for both costs one round trip.
+The two are in the same group, so asking for both costs one round trip (for the name Heidenhain also asks the tool table for its row list and for the tool's row).
 
 **A name need not identify a tool uniquely.** A SINUMERIK tool is identified by its name together with its duplo (sister tool) number, so several tools can share a name; which one is used is the control's decision. When you need to point at exactly one, use `activeToolNumber`.
 
-When no tool is active the value is an **empty string** (`activeToolNumber` answers `0` in that state). This was checked by unloading the tool from a channel on our 840D sl bench. There is no value there, and since this SDK does not report text with no content as `null`, it is normalised to an empty string.
+When no tool is active the value is an **empty string** (`activeToolNumber` answers `0` in that state). This was checked by unloading the tool from a channel on our 840D sl bench. There is no value there, and since this SDK does not report text with no content as `null`, it is normalised to an empty string. Heidenhain gives an empty string too when the spindle is empty (that state has not been confirmed).
 
 ## /machine/channel/activeToolEdgeNumber
 ```yaml
@@ -2621,7 +2823,7 @@ write: []
 
 The number (`D`) of the edge whose compensation is **currently in effect** on the active tool. `channel` filter. Returns `int`. It is Siemens `actDNumber`. This address answers "which compensation set", not "is a tool loaded" - that is what `activeToolNumber` answers with `0`.
 
-**Siemens only** (Fanuc and Mitsubishi return status `-20`). Neither of those offset models has a per-tool edge (compensation set) layer, so the question "which edge" does not arise. Earlier versions returned a fixed `1` on those two; that asserted a dimension that does not exist, so it was removed. On Fanuc the compensation numbers a program calls are read per tool from `/machine/toolArea/tool/toolHNumber` and `toolDNumber` (tool management option).
+**Siemens only** (Fanuc, Mitsubishi and Heidenhain return status `-20`; on Heidenhain, deemesh has not found a way to ask which index of an index tool is in the spindle now). Neither the Fanuc nor the Mitsubishi offset model has a per-tool edge (compensation set) layer, so the question "which edge" does not arise. Earlier versions returned a fixed `1` on those two; that asserted a dimension that does not exist, so it was removed. On Fanuc the compensation numbers a program calls are read per tool from `/machine/toolArea/tool/toolHNumber` and `toolDNumber` (tool management option).
 
 ## /machine/channel/activeToolGroupNumber
 ```yaml
@@ -2640,7 +2842,7 @@ On a machine with tool life management, a program selects a group and that group
 
 Where `/machine/channel/activeToolNumber` is "the tool currently loaded", this is "the group whose life is being spent". They are different things, so read both.
 
-**Siemens and Mitsubishi answer with status `-20`.** Tool groups are a layer of tool life management (Fanuc, Mitsubishi); Siemens has no such table and replaces tools by grouping same-name tools through `sisterToolNumber`. Of tool life management, the Mitsubishi adapter answers only the group list and the tools in a group (`registeredToolGroupList`, `toolGroup/toolNumberList`, `toolGroup/toolCount`), the life values of a tool (`tool/toolLifeMonitorType`, `tool/toolLifeTotal`, `tool/toolLifeUsed`) and the life status of a group's tools (`toolGroup/toolLifeStatusList`).
+**Siemens, Mitsubishi and Heidenhain answer with status `-20`.** Tool groups are a layer of tool life management (Fanuc, Mitsubishi); Siemens has no such table and replaces tools by grouping same-name tools through `sisterToolNumber`. Of tool life management, the Mitsubishi adapter answers only the group list and the tools in a group (`registeredToolGroupList`, `toolGroup/toolNumberList`, `toolGroup/toolCount`), the life values of a tool (`tool/toolLifeMonitorType`, `tool/toolLifeTotal`, `tool/toolLifeUsed`) and the life status of a group's tools (`toolGroup/toolLifeStatusList`).
 
 ## /machine/channel/nextToolGroupNumber
 ```yaml
@@ -2692,13 +2894,13 @@ That makes it the way to ask "which group did we use last" while the machine sit
 value_type: "int"
 null_able: false
 required_filters: ["toolArea"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
 The **number of tools registered** in that tool area. `toolArea` filter (`toolArea` is the tool area number the channel uses). Returns `int`, read-only. It is `0` when no tool is registered.
 
-**On Mitsubishi this address is slow** (roughly 1 to 2 s on the NC Trainer2 plus simulator). That control's tool management table has 999 slots that must be asked for one at a time, and a cleared slot leaves a **gap**, so the walk cannot stop early. **Do not poll it** - it is for drawing a screen once. When you need a single tool, the `/machine/toolArea/tool/…` addresses are far faster because they stop at the match. A communication error during the walk answers the error rather than what was read so far.
+**On Mitsubishi this address is slow** (a little over 2 s on the NC Trainer2 plus simulator; it varies with the machine and the network). That control's tool management table has 999 slots that must be asked for one at a time, and a cleared slot leaves a **gap**, so the walk cannot stop early. **Do not poll it** - it is for drawing a screen once. When you need a single tool, the `/machine/toolArea/tool/…` addresses are far faster because they stop at the match. A communication error during the walk answers the error rather than what was read so far.
 
 It equals the number of elements `toolList` returns and reads **the same value from the machine**; it exists so that you need not fetch the whole list when only the count matters. Measured on our Siemens 840D sl bench with 17 tools it is far cheaper than the list (81 ms vs 684 ms).
 
@@ -2708,24 +2910,27 @@ A nonexistent tool area is rejected with status `-18`.
 
 **On Mitsubishi, a configuration whose tool management table cannot be read answers status `-20`** (the control refuses the read on a machine or project that does not use the table; the error carries the vendor code).
 
+**Heidenhain** counts each tool number in the tool table (the tool management screen on the control) once. Index tools (rows such as `5.1` that follow a tool number) do not add tools; they count as that tool's edges (`/machine/toolArea/tool/toolEdgeCount`). Row `0` at the top of the table is not treated as a tool and is not counted. `toolArea` is `1` only.
+
 ## /machine/toolArea/toolList
 ```yaml
 value_type: "objectArray"
 null_able: false
 required_filters: ["toolArea"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
+field_codes: {"toolLocationType": [{"value": "magazine", "name": "Magazine", "read": ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_dnc_heidenhain"]}, {"value": "buffer", "name": "Spindle or tool changer", "read": ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_dnc_heidenhain"]}, {"value": "loading", "name": "Load/unload position", "read": ["nc_opcua_siemens"]}, {"value": "none", "name": "No physical place", "read": ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_dnc_heidenhain"]}]}
 ```
 
 The list of **every tool registered** in that tool area. `toolArea` filter (`toolArea` is the tool area number the channel uses). Returns `objectArray`, or an empty array `[]` when no tool is registered.
 
-**On Mitsubishi this address is slow** (roughly 1 to 2 s on the NC Trainer2 plus simulator). That control's tool management table has 999 slots that must be asked for one at a time, and a cleared slot leaves a **gap**, so the walk cannot stop early. **Do not poll it** - it is for drawing a screen once. When you need a single tool, the `/machine/toolArea/tool/…` addresses are far faster because they stop at the match. A communication error during the walk answers the error rather than what was read so far.
+**On Mitsubishi this address is slow** (a little over 2 s on the NC Trainer2 plus simulator; it varies with the machine and the network). That control's tool management table has 999 slots that must be asked for one at a time, and a cleared slot leaves a **gap**, so the walk cannot stop early. **Do not poll it** - it is for drawing a screen once. When you need a single tool, the `/machine/toolArea/tool/…` addresses are far faster because they stop at the match. A communication error during the walk answers the error rather than what was read so far.
 
 Element: `{"toolNumber": 16, "toolTNumber": null, "toolName": "BALLNOSE_D8", "toolEdgeCount": 4, "sisterToolNumber": 9, "magazineNumber": 0, "pocketNumber": 0, "toolLocationType": "buffer", "toolTeethCount": null, "toolBodyLength": null, "toolBodyDiameter": null, "toolOffsetNumber": null}`
 
 Tool numbers are **sparse**: 17 tools may occupy numbers 2 through 18 with no number 1, so trying numbers from 1 upward tells you nothing about what exists. This list is the answer: take an element's `toolNumber` and put it straight into the `tool` filter to query the per-tool addresses.
 
-**The order differs by machine type, but is the same on every read.** Fanuc and Siemens sort by ascending `toolNumber`. The Siemens tool list screen is usually sorted by name and the operator can change the sort, so there is no single "screen order" to match, which is why we fixed the number order (to display it the way the screen does, sort by `toolName`). **Mitsubishi keeps the row order of the tool management table**: on that control the screen shows the table rows as they are, so this order matches the screen, and it may not be ascending tool number once a cleared row is refilled by a new tool later.
+**The order differs by machine type, but is the same on every read.** Fanuc, Siemens and Heidenhain sort by ascending `toolNumber`. The Siemens tool list screen is usually sorted by name and the operator can change the sort, so there is no single "screen order" to match, which is why we fixed the number order (to display it the way the screen does, sort by `toolName`). **Mitsubishi keeps the row order of the tool management table**: on that control the screen shows the table rows as they are, so this order matches the screen, and it may not be ascending tool number once a cleared row is refilled by a new tool later.
 
 **`toolNumber` is not the `Loc.` (place number) on the machine's screen.** A machine using tool management identifies tools by name and sister number, so this number does not appear in the list screen (it is the `Tool number` field in the tool detail screen). Putting the screen's `Loc.` into the `tool` filter **queries a different tool and still looks successful**. The two numbers coincide for many tools, which makes it hard to notice. That value is `pocketNumber`, and this list carries both so you can check the correspondence.
 
@@ -2737,13 +2942,13 @@ Tool numbers are **sparse**: 17 tools may occupy numbers 2 through 18 with no nu
 - **magazineNumber**: the magazine (tool store) it currently sits in; `0` when outside a magazine
 - **pocketNumber**: the pocket inside that magazine; `0` when outside a magazine
 - **toolLocationType** is the kind of place: `"magazine"` (in a magazine), `"buffer"` (spindle or tool changer), `"loading"` (load/unload position), `"none"` (no physical place)
-- **toolTeethCount** · **toolBodyLength** · **toolBodyDiameter** · **toolOffsetNumber**: the per-tool columns of the Mitsubishi tool management table (see the identically named single addresses for their meaning). `null` on Fanuc and Siemens, which have no such columns
+- **toolTeethCount** · **toolBodyLength** · **toolBodyDiameter** · **toolOffsetNumber**: the per-tool columns of the Mitsubishi tool management table (see the identically named single addresses for their meaning). `null` on Fanuc, Siemens and Heidenhain (on Siemens and Heidenhain the tooth count is per cutting edge and is answered by `/machine/toolArea/tool/toolEdge/toolTeethCount`)
 
 The list answers **what exists, what to call it, and where it is**. Measured values such as offsets and wear are per-edge and are not included.
 
 When a value is unavailable the key is not dropped, it is `null` (on machine types that know the locations, the three location fields are the exception and carry the same values as the identically named single addresses; on Mitsubishi, which cannot see them, they are `null`). The list comes back in **the same order on every read**, so reading it twice and comparing is meaningful. A nonexistent tool area is rejected with status `-18`.
 
-**The three location fields change whenever a tool moves**; the rest rarely change. This list is meant to be fetched once to draw a screen; if all you need is the currently active tool, use `/machine/channel/activeToolNumber` rather than polling the list (`activeToolNumber` is supported on every machine type; on Siemens that value is the tool whose change has completed, and on a Fanuc with the tool management option it is the tool's type number, not a `toolNumber` of this list).
+**The three location fields change whenever a tool moves**; the rest rarely change. This list is meant to be fetched once to draw a screen; if all you need is the currently active tool, use `/machine/channel/activeToolNumber` rather than polling the list (`activeToolNumber` is supported on every machine type; on Siemens and Heidenhain that value is the tool whose change has completed, and on a Fanuc with the tool management option it is the tool's type number, not a `toolNumber` of this list).
 
 **On Fanuc this is supported only on machines with the tool management (TOOL MANAGEMENT) option**; without it the address returns status `-20`. It lists only the registered slots of the tool management table (RGS bit of the tool information, the last letter `R` of the panel's `T-INFO`); `toolNumber` is the slot number (the panel's `NO.` column, up to parameter `13220`). `toolName` is an empty string, and `toolEdgeCount` and `sisterToolNumber` are `null` because they are Siemens tool management concepts (edge layer, sister tool). The number a program calls with `T` is not this number but the tool's **type number** (the panel's `TYPE NO.`), carried as `toolTNumber` in each item. The three location fields carry the same values as the single addresses (`1` to `8` magazines, spindle and standby positions `"buffer"`, not loaded `"none"`; see `/machine/toolArea/tool/toolLocationType`). On a Fanuc without the option the offset table is filled densely from `1`, so there is nothing to enumerate.
 
@@ -2751,16 +2956,18 @@ When a value is unavailable the key is not dropped, it is `null` (on machine typ
 
 **On Mitsubishi, a configuration whose tool management table cannot be read answers status `-20`** (the control refuses the read on a machine or project that does not use the table; the error carries the vendor code).
 
+**Heidenhain** lists the tools in the tool table (the tool management screen on the control). `toolNumber` is the table's tool number and `toolTNumber` is the same value (a program's `TOOL CALL` calls the tool by this number; depending on the machine settings it can also call by name, according to the TNC7 User's Manual, 'Tool call by TOOL CALL'). `toolName` is the tool name (`NAME`) and `toolEdgeCount` is the tool's row count (its own row plus its index tool rows; see `/machine/toolArea/tool/toolEdgeCount`). `sisterToolNumber` is `null`; the replacement tool is answered by `/machine/toolArea/tool/sisterTool`. The three location fields come from the pocket table (see `/machine/toolArea/tool/toolLocationType`). The four Mitsubishi table columns are `null`. Row `0` at the top of the table is not treated as a tool and is not listed. The whole table is read at once; on the simulator (222 tools) it took around 0.5 seconds.
+
 ## /machine/toolArea/tool/toolExists
 ```yaml
 value_type: "boolean"
 null_able: false
 required_filters: ["toolArea", "tool"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
 ```
 
-Whether that tool number is **registered in the tool table**. `toolArea` + `tool` filters. Returns `boolean`. Reading and writing are supported on all three controls.
+Whether that tool number is **registered in the tool table**. `toolArea` + `tool` filters. Returns `boolean`. Reading is supported on all four controls; writing on all but Heidenhain.
 
 Asking about a tool that does not exist is not an error. It answers `false`, because the address exists to ask that question. On Siemens, however, when the tool cannot be read for a reason other than being absent (for example the account used to connect may not read tool data, so `BadUserAccessDenied` comes back), the read answers status `-17`, and so does a write.
 
@@ -2776,41 +2983,46 @@ On Siemens a newly created tool is **empty and has one cutting edge**. Its name 
 
 The Mitsubishi table is **a list of rows**, so a tool number is not a row number. `true` writes the number into the **first empty row** and `false` empties that row. The row number never appears in the address, so you do not have to care which slot it lands in. A newly created tool has `0` for the teeth count and the body dimensions, and **only the offset number is filled in by the control, with the tool number itself** (seen on the simulator). Set the rest through their own addresses. A deleted row is cleared in full by the control (the same as the panel's tool clear), so a tool created there later inherits no old values.
 
-**On Mitsubishi, creating and deleting an absent tool walk the whole table** (a little over two seconds on the simulator). The table has 999 rows and clearing a middle row leaves a hole, so proving that a number is not there means reading to the end. Deleting a tool that is there stops once its row is found (about 0.2 s on the simulator). **These are not calls to repeat in a loop.** A duplicate number is refused by the control as well, but deemesh checks first and answers with status `-21`. If the table has no free row at all, the write is refused with status `-23` (no room). The value is not wrong; there is nowhere to put it, so delete a tool to free a row and request again. If someone else (the operator panel, for instance) takes that free row while the table is being read, nothing is written and the answer is status `-24` (busy); send the same request again. A communication error during the walk answers an error rather than `false` for a read, and an error with nothing written for a write. On a machine where data protect key 1 (PLC signal `*KEY1`, `Y708`) is off, a refused registration or deletion is answered with status `-22` (machine state) after deemesh reads that signal (we have not tested registration or deletion with the key off).
+**On Mitsubishi, creating and deleting an absent tool walk the whole table** (a little over two seconds on the simulator). The table has 999 rows and clearing a middle row leaves a hole, so proving that a number is not there means reading to the end. Deleting a tool that is there stops once its row is found (about 0.2 s on the simulator). **These are not calls to repeat in a loop.** A duplicate number is refused by the control as well, but deemesh checks first and answers with status `-21`. If the table has no free row at all, the write is refused with status `-23` (no room). The value is not wrong; there is nowhere to put it, so delete a tool to free a row and request again. If someone else (the operator panel, for instance) takes that free row while the table is being read, nothing is written and the answer is status `-24` (busy); send the same request again. A communication error during the walk answers an error rather than `false` for a read, and an error with nothing written for a write. On a machine where data protect key 1 (PLC signal `*KEY1`, `Y708`) is off, a refused registration or deletion is answered with status `-22` (machine state) after deemesh reads that signal (we confirmed on a simulator that registration and deletion are refused with the key off).
 
 Writing on Fanuc: `true` **registers** the slot (`cnc_regtool`). The slot comes out as an **empty record with only the registration mark set** (type number `0`, no life management, H/D/S/F `0`), so no `T` command can pick it. The control supplies no defaults and deemesh invents none; fill it in afterwards through `toolTNumber`, `toolHNumber`, `toolDNumber`, `toolLifeMonitorType` and the life addresses. A slot whose registration is off but still holds values (the panel's `T-INFO` shows `-` while other columns show data) is refused by the control as it stands, so deemesh clears it first (`cnc_deltool`) and then registers it; the leftover values are discarded. A slot beyond `13220` cannot be created (status `-18`). `false` **deletes** the slot (`cnc_deltool`): the whole record is cleared and the control also removes that tool number from the magazine table (Connection Manual B-64483EN-1). The tool data lock (`toolDataLockedOn`) does not block this deletion (measured on our bench). The slots after it are not pulled up; they stay where they are (confirmed on a 31i bench). Writing `false` to a slot beyond `13220` is not an error, as with reading.
 
 **On Mitsubishi, a configuration whose tool management table cannot be read answers status `-20`** (the control refuses the read on a machine or project that does not use the table; the error carries the vendor code).
+
+**Heidenhain** reports whether the tool table (the tool management screen on the control) has a row for that number. Reading only; writing is status `-20` (deemesh does not create or delete tools on Heidenhain). Row `0` at the top of the table is not treated as a tool, so it reads `false`. `toolArea` is `1` only.
 
 ## /machine/toolArea/tool/toolName
 ```yaml
 value_type: "string"
 null_able: false
 required_filters: ["toolArea", "tool"]
-read: ["nc_opcua_siemens"]
-write: ["nc_opcua_siemens"]
+read: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
+write: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
 ```
 
 The tool's name (SINUMERIK `toolIdent`). `toolArea` + `tool` filters (`toolArea` is the tool area number the channel uses).
 
-Returns `string`; both read and write are supported. Write `{"value": "DRILL 10"}`. **Siemens only.** On machines that use tool management, a tool's identity is its name plus its sister-tool (duplo) number, so several tools may share one name. On machines that do not use names, an empty string is normal.
+Returns `string`; both read and write are supported. Write `{"value": "DRILL 10"}`. **Siemens and Heidenhain.** On Siemens machines that use tool management, a tool's identity is its name plus its sister-tool (duplo) number, so several tools may share one name. On machines that do not use names, an empty string is normal.
 
 A nonexistent tool is rejected with status `-18`. This address does not create tools. Length and character limits are the machine's to judge, and violations surface as an error.
 
 **Fanuc and Mitsubishi answer with status `-20`.** deemesh does not read a name from either control's tool management table (on Fanuc the tool name lives in the tool geometry size data and is answered by `/machine/channel/toolOffset/toolName`).
+
+**Heidenhain** uses the tool name in the tool table (`NAME`), and writing is supported. A name the control does not accept is status `-16`. The TNC7 User's Manual ('Tool name') allows up to 32 characters, using capital letters, digits and `#` `$` `%` `&` `,` `-` `_` `.`, and says lowercase letters are turned into capitals when saved. In our test environment, too, names of 33 characters or more and names with a space (`DRILL 10`), `/`, `:`, Korean letters or umlauts were refused, and `abc_def` was stored as `ABC_DEF`. The write example above has a space, so on Heidenhain write it as `DRILL_10`, for example. Names need not be unique (manual; point at a tool by its number). This address does not cover the names of index tools (rows such as `5.1` that follow a tool number). Row `0` at the top of the table is not treated as a tool, so it is status `-18`.
 
 ## /machine/toolArea/tool/toolUseStatus
 ```yaml
 value_type: "int"
 null_able: false
 required_filters: ["toolArea", "tool"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens"]
-write: ["nc_focas2_fanuc", "nc_opcua_siemens"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_dnc_heidenhain"]
+write: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_dnc_heidenhain"]
+codes: [{"value": 0, "name": "not managed", "read": ["nc_focas2_fanuc"]}, {"value": 1, "name": "unused"}, {"value": 2, "name": "in use"}, {"value": 3, "name": "life expired"}, {"value": 4, "name": "broken", "read": ["nc_focas2_fanuc"]}, {"value": 5, "name": "locked", "read": ["nc_opcua_siemens", "nc_dnc_heidenhain"]}]
 ```
 
-The tool's **use status**. `toolArea` + `tool` filters (`toolArea` is the tool area number the channel uses). Returns `int` + `desc`. Reading and writing are supported on Siemens and Fanuc. **This is per tool**: it takes no `toolEdge` filter (a tool with several offset data sets has one status for the whole tool).
+The tool's **use status**. `toolArea` + `tool` filters (`toolArea` is the tool area number the channel uses). Returns `int` + `desc`. Reading and writing are supported on Siemens, Fanuc and Heidenhain. **This is per tool**: it takes no `toolEdge` filter (on Siemens a tool with several offset data sets has one status for the whole tool; a Heidenhain index tool has a status per row, which `/machine/toolArea/tool/toolEdge/toolUseStatus` answers).
 
-The value is a machine-independent code defined by deemesh (not a vendor number). Each value is defined by **what state the tool is in right now**, and the two machine types return the same value only when they are in that state:
+The value is a machine-independent code defined by deemesh (not a vendor number). Each value is defined by **what state the tool is in right now**, and different machine types return the same value only when the tool is in the same state:
 
 | Value | Meaning |
 |---|---|
@@ -2819,18 +3031,19 @@ The value is a machine-independent code defined by deemesh (not a vendor number)
 | `2` | In use: has been used and is not locked |
 | `3` | Life expired: the life is used up and the control will not use it |
 | `4` | Broken: the control will not use it because it is broken (Fanuc only) |
-| `5` | Locked: cannot be used for a reason other than its life. Life remains but the tool is locked (from the operator panel, the PLC, an NC program and so on), or the tool has no use permission, so the control will not choose it (Siemens only) |
+| `5` | Locked: cannot be used for a reason other than its life. Life remains but the tool is locked (from the operator panel, the PLC, an NC program and so on), or the tool has no use permission, so the control will not choose it (Siemens and Heidenhain) |
 
-With `3`, `4` or `5` the control will not use that tool: it rejects a program that calls for it, or switches to the sister tool if one is registered (`/machine/toolArea/tool/sisterToolNumber`). Some values occur on one machine type only, but whenever a value occurs it means the same thing. `desc` is prose for a human; branch on the value.
+With `3`, `4` or `5` the control will not use that tool: it rejects a program that calls for it, or switches to the sister tool if one is registered (`/machine/toolArea/tool/sisterToolNumber`; on Heidenhain the replacement tool, `/machine/toolArea/tool/sisterTool`). Some values occur on one machine type only, but whenever a value occurs it means the same thing. `desc` is prose for a human; branch on the value.
 
 **Fanuc** carries the life state of the tool management data (the panel's `L-STATE`) over as it is: not managed `0`, unused `1`, usable `2`, life expired `3`, broken `4`. A tool the operator locks by hand at the panel is also called `life expired` (`3`) by the Fanuc control, so `5` never occurs. Supported only on machines with the tool management (TOOL MANAGEMENT) option; without it the address returns status `-20`. The LOC bit of the tool information (`/machine/toolArea/tool/toolDataLockedOn`) is a data edit lock and is not mixed in here.
 
 **Siemens** derives it from the tool state bits (`toolState`) and the remaining life: with the lock bit (Disabled) clear, the "was in use" bit decides `1`/`2`, except that a tool whose enable bit (Enabled) is also clear is `5` (the control does not pick such a tool); with the lock bit set, the value is `3` when life monitoring is on and any cutting edge has `0` or less remaining, otherwise `5`. There is a single lock bit and it does not record who set it or why, so `5` says no more than "locked for a reason other than the tool's life". Reading a locked tool usually costs one extra round trip for the remaining life. Even when the edge numbers have a gap (only `D1` and `D3` left after `D2` was deleted, for example), deemesh finds the edges that exist and checks them all; if it cannot find as many edges as the tool has within edge numbers `1`-`240`, it does not make up a value and answers status `-17`. SINUMERIK's tool state has no broken flag, so `4` never occurs, and a tool with monitoring switched off is still selectable, so `0` never occurs either.
 
-**Writing** names the state you want. If the tool is already in that state nothing happens and the write succeeds (the exception: on Siemens, writing `5` to a tool that reads `5` only because it has no use permission sets its lock bit). The writable values differ per machine type:
+**Writing** names the state you want. If the tool is already in that state nothing happens and the write succeeds (for a value that machine type accepts for writing; the exceptions: on Siemens, writing `5` to a tool that reads `5` only because it has no use permission sets its lock bit, and on Heidenhain a tool whose used time has reached `TIME2` answers status `-16` even when it is already in that state). The writable values differ per machine type:
 
 - Fanuc: `1`-`4` are written to the life state (`cnc_wrtool2`). Setting `3` may raise the tool change signal (`TLCH`) the moment every tool of the same type number has expired. A tool whose life state is "not managed" is rejected with status `-18` (set `/machine/toolArea/tool/toolLifeMonitorType` to `1`/`2` first). `0` is handled through `toolLifeMonitorType`, and `5` is status `-16` because Fanuc has no such state (write `3`).
 - Siemens: `5` sets the lock bit; `1`/`2` clear the lock bit, clear/set the "was in use" bit respectively, and set the enable bit. `3` is a fact the control derives from the remaining life and cannot be written directly, so it is status `-16` (write `0` to `/machine/toolArea/tool/toolEdge/toolLifeRemaining`, or `5` to lock the tool). `4` and `0` are status `-16` as well. **Writing a life value re-evaluates the lock**: SINUMERIK re-evaluates the tool state whenever a monitoring value (`toolLifeTotal`, `toolLifeRemaining`, `toolLifeWarnLimit`) changes (Siemens Tool management Function Manual §8.11), so a tool locked with `5` is released by writing a life value. To keep the lock, write `5` again afterwards (confirmed on our bench). Whether writing a life value also releases a tool that is `5` only because it has no use permission is not yet confirmed.
+- Heidenhain: `5` sets the tool table's lock (`TL`); `1`/`2` clear it. An unlocked tool reads `2` when it has used time and `1` when it has none, so only the value that matches is accepted, and a mismatch is status `-16` (to mark a tool unused, write `0` to `/machine/toolArea/tool/toolLifeUsed` first). `3` follows from the tool life, and `0` and `4` are states this control does not have, so they are status `-16`. A tool whose used time has reached `TIME2` reads `3` whatever the lock, so `1`, `2` and `5` are status `-16` for it as well (correct the used time first). Writing `5` to a tool past its maximum life (`TIME1`) sets the lock, and the tool then reads `3` (life expired), since a locked tool whose life is used up is expired. In our test environment locking a tool turned its row in the operator panel's tool table to the locked display at once.
 
 **If a tool that became `3` because its life ran out is only written back to `2`, its remaining life (the counter on Fanuc) stays as it was**, so it can return to `3` when the control next looks at its life (on the SINUMERIK bench it still read `2` three seconds after the write). If you changed the insert, reset the life: on Fanuc reset `/machine/toolArea/tool/toolLifeUsed` first; on Siemens resetting `/machine/toolArea/tool/toolEdge/toolLifeRemaining` alone also releases the lock. Restoring the state without changing the insert also means cutting with a worn-out edge.
 
@@ -2840,16 +3053,18 @@ This address replaces `/machine/toolArea/tool/toolDisabledOn` (`boolean`) of 1.1
 
 **Mitsubishi answers status `-20`.**
 
+**Heidenhain** derives the status from the tool table's lock (`TL`) and life columns (maximum life `TIME1`, the limit at tool call `TIME2`, used time `CUR_TIME`). A tool whose used time has reached `TIME2` is `3` whatever the lock: in our test environment calling such a tool made the control refuse it with a "tool life expired" error (also when the used time equaled `TIME2`), and the lock in the tool table was not set (the TNC7 User's Manual, 'Tool table tool.t', also says that a tool past `TIME2` is not inserted when called). Otherwise, when locked, it is `3` if a maximum life is set and the used time has reached it, otherwise `5`; when not locked, it is `2` if there is used time and `1` if not. `0` and `4` do not occur. **Being past `TIME1` follows the control's lock**: a tool whose used time is past its maximum life reads `2` until it is locked (in our test environment such a tool was still inserted; the manual says this behaviour depends on the machine). According to the manual the control also locks a tool that exceeded a tolerance of automatic tool measurement; that cause is not kept in the tool table, so the status is `5`. To tell whether the life has run out, compare `/machine/toolArea/tool/toolLifeUsed` with `/machine/toolArea/tool/toolLifeTotal`. Writing is in the list above. This address carries the tool's own row. Each index tool (such as `320.1`) has a lock and a life of its own, which `/machine/toolArea/tool/toolEdge/toolUseStatus` answers (`toolEdge=0` gives the same value as this address).
+
 ## /machine/toolArea/tool/toolTNumber
 ```yaml
 value_type: "int"
 null_able: false
 required_filters: ["toolArea", "tool"]
-read: ["nc_focas2_fanuc"]
+read: ["nc_focas2_fanuc", "nc_dnc_heidenhain"]
 write: ["nc_focas2_fanuc"]
 ```
 
-The number a program uses to **call this tool with `T`**. `toolArea` + `tool` filters (`toolArea` is the tool area number the channel uses). Returns `int`; both read and write are supported. Write `{"value": 10}`.
+The number a program uses to **call this tool with `T`**. `toolArea` + `tool` filters (`toolArea` is the tool area number the channel uses). Returns `int`. Reading is supported on Fanuc and Heidenhain, writing on Fanuc. Write `{"value": 10}`.
 
 It is the `10` in `T10 M06`, a sibling of `/machine/toolArea/tool/toolHNumber` (`H`) and `toolDNumber` (`D`): the numbers that correspond to the program's letters.
 
@@ -2858,6 +3073,8 @@ It is the `10` in `T10 M06`, a sibling of `/machine/toolArea/tool/toolHNumber` (
 **It pairs with `/machine/channel/activeToolNumber`.** On a tool-management machine the value that address reports is this number, so the entries of `/machine/toolArea/toolList` whose `toolTNumber` equals it are the candidate tools; `/machine/toolArea/tool/toolLocationType` answering `"buffer"` narrows down which one is actually in the spindle.
 
 It is not the **kind** of tool (drill, end mill and so on). The kind is `/machine/channel/toolOffset/toolType` on Fanuc (the tool geometry size data of a separate option) and `/machine/toolArea/tool/toolEdge/toolType` on Siemens.
+
+**Heidenhain** returns the tool number of the tool table as it is (the `10` in `TOOL CALL 10`, the same value as `toolTNumber` in the elements of `/machine/toolArea/toolList`). Unlike Fanuc it is one number per tool, and the number is the table row itself, so writing is status `-20`. `/machine/channel/activeToolNumber` gives the same number. According to the TNC7 User's Manual ('Tool call by TOOL CALL') a program can also call a tool by name, depending on the machine settings, but several tools can share a name ('Tool name'), so point at a tool by this number. For an index tool (such as `10.1`) this address also gives the tool's own number (the index is told by `toolEdge`). A nonexistent tool and row `0` at the top of the table are status `-18` (confirmed in our test environment).
 
 **Siemens answers status `-20`**: that control calls tools by name, so the same place is `/machine/toolArea/tool/toolName`.
 
@@ -2910,7 +3127,7 @@ read: ["nc_ezsocket_mitsubishi"]
 write: ["nc_ezsocket_mitsubishi"]
 ```
 
-The **offset number** this tool uses (**Mitsubishi only**: it is a column of that control's tool management table, so the other two answer status `-20`). `toolArea` + `tool` filters. Returns `int`, readable and writable.
+The **offset number** this tool uses (**Mitsubishi only**: it is a column of that control's tool management table, so the other three answer status `-20`). `toolArea` + `tool` filters. Returns `int`, readable and writable.
 
 **This is the link from a tool number to that tool's compensation values.** Put it straight into the `toolOffset` filter of `/machine/channel/toolOffset/…` and you get the geometry, wear and nose radius.
 
@@ -2950,6 +3167,27 @@ Returns `int`; both read and write are supported. Write `{"value": 2}`. **Siemen
 A nonexistent tool is rejected with status `-18`. A value that is not an integer, or outside `0`~`65535`, gives status `-16`. The effective upper limit comes from the machine configuration, and values outside that narrower range are rejected by the machine.
 
 **Fanuc and Mitsubishi answer with status `-20`.** Sister tools, same-name tools told apart by number, are a Siemens tool management concept; on Fanuc replacement tools are handled by tool life management groups (`/machine/toolArea/toolGroup/…`).
+
+**Heidenhain answers with status `-20`.** A Heidenhain replacement tool is not a number among same-named tools but a reference to another tool, which can be an index tool, so `/machine/toolArea/tool/sisterTool` answers it.
+
+## /machine/toolArea/tool/sisterTool
+```yaml
+value_type: "object"
+null_able: false
+required_filters: ["toolArea", "tool"]
+read: ["nc_dnc_heidenhain"]
+write: ["nc_dnc_heidenhain"]
+```
+
+The **replacement tool** used in this tool's place. `toolArea` + `tool` filters (`toolArea` is the tool area number the channel uses). Returns `object`; both read and write are supported. Write `{"value": {"toolNumber": 320, "toolEdgeNumber": 1}}`.
+
+The value is **two numbers that point at the replacement tool**, such as `{"toolNumber": 320, "toolEdgeNumber": 1}`. Put them as they are into the `tool` and `toolEdge` filters to read that tool. With no replacement tool it is `{"toolNumber": 0, "toolEdgeNumber": 0}`.
+
+**Heidenhain only.** It is the tool table's replacement tool (`RT`, a tool-life field on the control's tool management screen). It can point at an index tool (a row such as `320.1` that follows a tool number), and `toolEdgeNumber` is that index (`320` is `0` and `320.1` is `1`, the same number as the `toolEdge` filter). The control keeps this as one decimal number (`320.1`), but deemesh returns it as two numbers: splitting a decimal into the tool number and the index can go wrong through binary rounding (the fraction of `5.3` becomes `0.2999…`). This address carries the tool's own row. Index tool rows have replacement tool fields of their own, which `/machine/toolArea/tool/toolEdge/sisterTool` answers (`toolEdge=0` gives the same value as this address).
+
+**Writing**: give both keys as integers. Any other key, or a missing one, is status `-16` (ignoring a misspelled key would point at another tool, so it is not accepted). Writing `{"toolNumber": 0, "toolEdgeNumber": 0}` clears the replacement tool. The replacement tool must be in the tool table; the control does not accept a tool that is not there, which is status `-16`. Because the control keeps one decimal number, an index that cannot be told apart in that form (an index ending in `0`, such as `10`, `20` or `100`) is not sent and is status `-16`. Row `0` at the top of the table is not treated as a tool, so it is status `-18`.
+
+Siemens, Fanuc and Mitsubishi answer with status `-20`. On Siemens the sister tool is the tool's own number among same-named tools, which `/machine/toolArea/tool/sisterToolNumber` answers.
 
 ## /machine/toolArea/tool/toolTeethCount
 ```yaml
@@ -3089,7 +3327,7 @@ The write changes only this bit of the tool information word and writes the othe
 value_type: "boolean"
 null_able: false
 required_filters: ["toolArea", "tool"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_dnc_heidenhain"]
 write: []
 ```
 
@@ -3103,6 +3341,8 @@ A nonexistent tool is rejected with status `-18`.
 
 **On Fanuc this is supported only on machines with the tool management (TOOL MANAGEMENT) option**; without it the address returns status `-20`. It is the big-tool bit (BDT) of the tool information and is read-only. The neighbouring pockets an oversize tool occupies appear as `toolNumber` `0` in `/machine/toolArea/magazine/pocketList` (measured on our bench: setting the bit made it `true`).
 
+**Heidenhain** reads the `ST` column of the pocket table, which marks a special tool such as an oversize tool (the TNC7 User's Manual, 'Pocket table tool_p.tch', has the pockets next to it locked through the lock column `L`). It is the value of the pocket that holds the tool, and for the tool in the spindle, of the pocket kept free for it. Because the flag lives with the pocket, **a tool that is not in a magazine reads `false`**. In our test environment, turning `ST` on for one pocket made only the tool in that pocket read `true`. Read only. If deemesh does not find the `ST` column in the pocket table, the status is `-20`.
+
 **Mitsubishi answers status `-20`.**
 
 ## /machine/toolArea/tool/toolFixedLocationOn
@@ -3110,17 +3350,19 @@ A nonexistent tool is rejected with status `-18`.
 value_type: "boolean"
 null_able: false
 required_filters: ["toolArea", "tool"]
-read: ["nc_opcua_siemens"]
-write: ["nc_opcua_siemens"]
+read: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
+write: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
 ```
 
 Whether the tool is **assigned to a fixed location**: it always returns to the same pocket. `toolArea` + `tool` filters. Returns `boolean`; both read and write are supported (`{"value": true}` assigns it, `false` releases it).
 
-When `true` the tool goes back to its own pocket after a tool change; when `false` the machine picks a free pocket. This is the `L` column on the machine's magazine screen.
+When `true` the tool goes back to its own pocket after a tool change; when `false` the machine picks a free pocket. On Siemens this is the `L` column on the magazine screen.
 
 If it is already in that state, nothing happens and the write succeeds. A nonexistent tool is rejected with status `-18`.
 
-**Siemens only.**
+**Siemens and Heidenhain support it.**
+
+**Heidenhain** keeps this flag not with the tool but in the `F` column (fixed pocket, which the TNC7 User's Manual, 'Pocket table tool_p.tch', describes as returning the tool to the same pocket every time) of the pocket table. deemesh therefore reads and writes it on the pocket that holds the tool; for the tool in the spindle it is the pocket kept free for it. **A tool without a pocket in the pocket table reads `false`** (a tool not in a magazine, or one in the spindle whose original pocket is not reserved; there is no pocket to keep a fixed location in), and a write answers status `-22`: put the tool into a magazine first. When the `F` column is not found in the pocket table the status is `-20`. How the pocket table is handled depends on the machine (TNC7 User's Manual, 'Configuring a tool': a machine manufacturer's function or an external tool management system may handle it). On such a machine a written value may be changed or may conflict with that system, so check the machine manual. Reading and writing were confirmed in our test environment with a tool in the magazine and with the tool in the spindle.
 
 **Fanuc and Mitsubishi answer with status `-20`.** deemesh does not read this item from their tool data.
 
@@ -3129,16 +3371,17 @@ If it is already in that state, nothing happens and the write succeeds. A nonexi
 value_type: "int"
 null_able: false
 required_filters: ["toolArea", "tool"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: ["nc_focas2_fanuc", "nc_opcua_siemens"]
+codes: [{"value": 0, "name": "no monitoring", "read": ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_dnc_heidenhain"]}, {"value": 1, "name": "time"}, {"value": 2, "name": "count", "read": ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]}, {"value": 3, "name": "wear", "read": ["nc_opcua_siemens"]}]
 ```
 
-How the tool's life is **monitored**. `toolArea` + `tool` filters. Returns `int`. Reading and writing are supported on Siemens and Fanuc; Mitsubishi supports reading only. Write `{"value": 2}`.
+How the tool's life is **monitored**. `toolArea` + `tool` filters. Returns `int`. Reading and writing are supported on Siemens and Fanuc; Mitsubishi and Heidenhain support reading only. Write `{"value": 2}`.
 
 | Value | Meaning | Unit of the life values |
 |---|---|---|
 | `0` | no monitoring | n/a |
-| `1` | time: counts how long the tool actually cut | the control's own unit: minutes on Siemens and Mitsubishi (`unit` is `"min"`), seconds on Fanuc (`unit` is `"s"`) |
+| `1` | time: counts how long the tool actually cut | the control's own unit: minutes on Siemens, Mitsubishi and Heidenhain (`unit` is `"min"`), seconds on Fanuc (`unit` is `"s"`) |
 | `2` | count: what is counted is up to the control (finished workpieces on Siemens, tool mountings or cuttings on Mitsubishi) | counts (`unit` is `"count"`) |
 | `3` | wear: watches whether the offset has drifted to its limit | machine setting (mm/inch), so no `unit` is attached |
 
@@ -3146,7 +3389,7 @@ How the tool's life is **monitored**. `toolArea` + `tool` filters. Returns `int`
 
 On Siemens the **tool picks one method, and the values are per cutting edge**. That is why this address takes no `toolEdge` filter while the three per-edge life values do. On Fanuc the life values are per tool as well: `/machine/toolArea/tool/toolLifeTotal`, `toolLifeUsed` and `toolLifeWarnLimit` are its partners.
 
-When it is `0` the three life values are rejected with status `-18`: there is nothing to measure on that tool. To switch monitoring on, write the method here first, then put a budget in (Siemens `/machine/toolArea/tool/toolEdge/toolLifeTotal`, Fanuc `/machine/toolArea/tool/toolLifeTotal`; on Fanuc switching the life state (`L-STATE`) on in the tool management screen of the operator panel has the same effect).
+On Siemens and Fanuc, when it is `0` the three life values are rejected with status `-18`: there is nothing to measure on that tool. To switch monitoring on, write the method here first, then put a budget in (Siemens `/machine/toolArea/tool/toolEdge/toolLifeTotal`, Fanuc `/machine/toolArea/tool/toolLifeTotal`; on Fanuc switching the life state (`L-STATE`) on in the tool management screen of the operator panel has the same effect). Heidenhain switches it on through the maximum life instead (below).
 
 A Siemens machine may have several methods on **at once**. In that case this address answers with the first of time → count → wear, and the three life values follow the same order, so the method and the values never disagree. The answers to "does this need replacing" (`/machine/toolArea/tool/toolLifeWarnOn` and `/machine/toolArea/tool/toolUseStatus`) are always exact regardless of method.
 
@@ -3156,13 +3399,15 @@ This address was previously named `/machine/toolArea/tool/toolMonitorType`; the 
 
 **Mitsubishi** carries the method of a tool registered in tool life management (the `Mthd` column of the operator panel's `T-life group` screen, the rightmost of its three digits). Cumulative cutting time is `1`; cumulative mounting count and cumulative cutting count are both `2`, and `desc` says which (`"Cutting time"`, `"Mounting count"`, `"Cutting count"`; Instruction Manual IB-1501274). `0` and `3` do not occur. The matching life values are `/machine/toolArea/tool/toolLifeTotal` and `toolLifeUsed`. `toolArea` is the part system number; a tool not registered in tool life management answers status `-18`, and a part system whose tool life groups cannot be read answers status `-20`. EZSocket `FCSB1224W100-A9` or later is required: with an earlier version the answer is always status `-20`, before any other check, and installing that version or later makes it readable. When the life values the control returns are not laid out the way deemesh reads them (a part system that answers in a different layout), the answer is status `-20` as well (checked against the operator panel on the simulator).
 
+**Heidenhain** has time monitoring only. It is `1` when the tool table's maximum life (`TIME1`) or the limit at tool call (`TIME2`) is greater than `0`, and `0` when both are `0` (the TNC7 User's Manual, 'Tool table tool.t', describes both as limits past which the tool is locked). Writing this address is status `-20`; monitoring is switched by writing the maximum life: write a value in minutes to `/machine/toolArea/tool/toolLifeTotal` to turn it on, and `0` to turn it off (deemesh does not write `TIME2`, so while that column holds a value, writing `0` leaves this at `1`). The matching life values are `/machine/toolArea/tool/toolLifeTotal` and `toolLifeUsed`. This address carries the tool's own row; whether an index tool (such as `320.1`) is monitored shows as `/machine/toolArea/tool/toolEdge/toolLifeTotal` answering status `-18` or not.
+
 ## /machine/toolArea/tool/toolLifeTotal
 ```yaml
 value_type: "float"
 null_able: false
 required_filters: ["toolArea", "tool"]
-read: ["nc_focas2_fanuc", "nc_ezsocket_mitsubishi"]
-write: ["nc_focas2_fanuc"]
+read: ["nc_focas2_fanuc", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
+write: ["nc_focas2_fanuc", "nc_dnc_heidenhain"]
 ```
 
 The **whole life budget** (maximum life) allotted to that tool. `toolArea` + `tool` filters (`toolArea` is the tool area number the channel uses). Returns `float`; both read and write are supported (Mitsubishi reads only). Write `{"value": 20}`.
@@ -3177,13 +3422,15 @@ Writing accepts only whole numbers in the unit of the read (a fractional value i
 
 **Siemens answers status `-20`.** The Siemens life is per cutting edge and lives at `/machine/toolArea/tool/toolEdge/toolLifeTotal`.
 
+**Heidenhain** uses the tool table's maximum life (`TIME1`), in minutes (`unit` is `"min"`, shown as `TIME1 (min)` on the control's tool management screen). `0` means there is no maximum life, so reading is status `-18` (also for a tool that has only the limit at tool call `TIME2`, and then the error message names `TIME2`; see `toolLifeMonitorType`). **Writing is accepted even while monitoring is off**: writing a value turns monitoring on, and writing `0` turns it off. Only whole minutes are accepted (a fraction is status `-16`, because the control rounds it to a whole number: `1.5` became `2` in our test environment). A value the control does not accept is status `-16`, with the allowed range in the error message (`0` to `99999` on the simulator). Row `0` at the top of the table is not treated as a tool, so it is status `-18`. This address carries the tool's own row. Each index tool (such as `320.1`) has a life of its own, which `/machine/toolArea/tool/toolEdge/toolLifeTotal` answers (`toolEdge=0` gives the same value as this address).
+
 ## /machine/toolArea/tool/toolLifeUsed
 ```yaml
 value_type: "float"
 null_able: false
 required_filters: ["toolArea", "tool"]
-read: ["nc_focas2_fanuc", "nc_ezsocket_mitsubishi"]
-write: ["nc_focas2_fanuc"]
+read: ["nc_focas2_fanuc", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
+write: ["nc_focas2_fanuc", "nc_dnc_heidenhain"]
 ```
 
 The life the tool **has used so far** (the life counter). `toolArea` + `tool` filters (`toolArea` is the tool area number the channel uses). Returns `float`; both read and write are supported (Mitsubishi reads only). Write `{"value": 0}`.
@@ -3197,6 +3444,8 @@ The unit is the same as `toolLifeTotal` (seconds `"s"` under time monitoring, `c
 **Mitsubishi** gives the tool's usage (the `Used` column of the operator panel's `T-life group` screen). The unit is that of `toolLifeTotal` (minutes `"min"` for cutting time, `count` for the counts), and when the usage exceeds the life the tool's status becomes life reached (`2` of `/machine/toolArea/toolGroup/toolLifeStatusList`; Instruction Manual IB-1501274). `toolArea` is the part system number; a tool not registered in tool life management answers status `-18`, and a part system whose tool life groups cannot be read answers status `-20`. EZSocket `FCSB1224W100-A9` or later is required: with an earlier version the answer is always status `-20`, before any other check, and installing that version or later makes it readable. When the life values the control returns are not laid out the way deemesh reads them (a part system that answers in a different layout), the answer is status `-20` as well (checked against the operator panel on the simulator).
 
 **Siemens answers status `-20`.** Siemens counts the remainder down, so read `/machine/toolArea/tool/toolEdge/toolLifeRemaining` there.
+
+**Heidenhain** uses the tool table's current used time (`CUR_TIME`), in minutes (`unit` is `"min"`, shown as `CUR_TIME (min)` on the control's tool management screen); the control counts it up toward the maximum life (`/machine/toolArea/tool/toolLifeTotal`) (on the simulator it grew during feed blocks). When there is no life limit (`TIME1` and `TIME2` both `0`, `toolLifeMonitorType` is `0`), both reading and writing are status `-18`; write `toolLifeTotal` first. Writing accepts fractions, and the control rounds them to two decimal places (in our test environment `1.234` became `1.23` and `1.235` became `1.24`). Read the value back to see what was stored. The TNC7 User's Manual, 'Tool table tool.t', gives the input range as `0` to `99999.99` and says a change during program run applies to tool life monitoring at once. Used time that has reached `TIME2` (equal counts) makes `/machine/toolArea/tool/toolUseStatus` `3`; being past the maximum life (`TIME1`) follows the control's lock, so it does not by itself make it `3` (see that address). Row `0` at the top of the table is not treated as a tool, so it is status `-18`. This address carries the tool's own row. Each index tool (such as `320.1`) has a life of its own, which `/machine/toolArea/tool/toolEdge/toolLifeUsed` answers (`toolEdge=0` gives the same value as this address).
 
 ## /machine/toolArea/tool/toolLifeWarnLimit
 ```yaml
@@ -3249,11 +3498,12 @@ With monitoring off it is always `false`. A nonexistent tool is rejected with st
 value_type: "string"
 null_able: false
 required_filters: ["toolArea", "tool"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_dnc_heidenhain"]
 write: []
+codes: [{"value": "magazine", "name": "Magazine"}, {"value": "buffer", "name": "Spindle or tool changer"}, {"value": "loading", "name": "Load/unload position", "read": ["nc_opcua_siemens"]}, {"value": "none", "name": "No physical place"}]
 ```
 
-**What kind of place** the tool is in. `toolArea` + `tool` filters (`toolArea` is the tool area number the channel uses). Returns `string`, **read-only**. The value is its own meaning, so no separate code table is needed.
+**What kind of place** the tool is in. `toolArea` + `tool` filters (`toolArea` is the tool area number the channel uses). Returns `string`, **read-only**. The value is its own meaning.
 
 | Value | Meaning |
 |---|---|
@@ -3272,12 +3522,14 @@ write: []
 
 **Mitsubishi answers status `-20`.**
 
+**Heidenhain** looks the tool up in the pocket table: `"buffer"` in the spindle row (`0.0`), `"magazine"` in a magazine row, and `"none"` when it is not in the table. A tool in the spindle also keeps its number in its original pocket (the spot is held), but it answers `"buffer"`. deemesh does not tell loading positions apart on Heidenhain, so `"loading"` does not occur.
+
 ## /machine/toolArea/tool/magazineNumber
 ```yaml
 value_type: "int"
 null_able: false
 required_filters: ["toolArea", "tool"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_dnc_heidenhain"]
 write: []
 ```
 
@@ -3293,12 +3545,14 @@ When the tool is not in a magazine the value is `0`: it is cutting in the spindl
 
 **Mitsubishi answers status `-20`.**
 
+**Heidenhain** returns the magazine number of the magazine row holding the tool in the pocket table. In the spindle (`toolLocationType` is `"buffer"`) or not in the table it is `0`. The number kept in the original pocket while the tool is in the spindle is not where the tool is now; `/machine/toolArea/tool/originalMagazineNumber` answers it.
+
 ## /machine/toolArea/tool/pocketNumber
 ```yaml
 value_type: "int"
 null_able: false
 required_filters: ["toolArea", "tool"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_dnc_heidenhain"]
 write: []
 ```
 
@@ -3316,12 +3570,14 @@ If the magazine number is the apartment building, this is the unit number. Both 
 
 **Mitsubishi answers status `-20`.**
 
+**Heidenhain** returns the pocket number of the magazine row holding the tool in the pocket table. In the spindle (`toolLocationType` is `"buffer"`) or not in the table it is `0`. The number kept in the original pocket while the tool is in the spindle is not where the tool is now; `/machine/toolArea/tool/originalPocketNumber` answers it.
+
 ## /machine/toolArea/tool/originalMagazineNumber
 ```yaml
 value_type: "int"
 null_able: false
 required_filters: ["toolArea", "tool"]
-read: ["nc_opcua_siemens"]
+read: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
 write: []
 ```
 
@@ -3344,16 +3600,18 @@ toolLocationType           "magazine"      "buffer"
 
 A tool with no place assigned reads `0` (the same rule as `magazineNumber`). Asking about a tool that does not exist is status `-18`.
 
-**Siemens only** (`toolMyMag`).
+**Siemens and Heidenhain** (`toolMyMag` on Siemens).
 
 **Fanuc and Mitsubishi answer with status `-20`.** deemesh does not read an original place on either control (on Fanuc, once the tool is in the spindle or a standby place, `magazineNumber` and `pocketNumber` read `0` and only `toolLocationType` says so).
+
+**Heidenhain** looks it up in the pocket table. For a tool in the spindle the pocket table keeps its number in the original pocket to hold the spot, so this is that spot's magazine number (the same shape as the Siemens table above, confirmed with `TOOL CALL` on the simulator); for a tool in the magazine it equals `/machine/toolArea/tool/magazineNumber`, and a tool not in the table gives `0`. The TNC7 User's Manual ('Pocket table tool_p.tch') describes reserving that pocket while the tool is in the spindle as the behaviour of a box magazine; with a setup that does not reserve it, or for a tool inserted by hand, the value can be `0` while the tool is in the spindle (not confirmed in our test environment).
 
 ## /machine/toolArea/tool/originalPocketNumber
 ```yaml
 value_type: "int"
 null_able: false
 required_filters: ["toolArea", "tool"]
-read: ["nc_opcua_siemens"]
+read: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
 write: []
 ```
 
@@ -3363,16 +3621,18 @@ It pairs with `originalMagazineNumber` to give the full place. The rules are the
 
 A tool with no place assigned reads `0`; a tool that does not exist is status `-18`.
 
-**Siemens only** (`toolMyPlace`).
+**Siemens and Heidenhain** (`toolMyPlace` on Siemens).
 
 **Fanuc and Mitsubishi answer with status `-20`.** deemesh does not read an original place on either control (on Fanuc, once the tool is in the spindle or a standby place, `magazineNumber` and `pocketNumber` read `0` and only `toolLocationType` says so).
+
+**Heidenhain** looks it up in the pocket table. For a tool in the spindle the pocket table keeps its number in the original pocket to hold the spot, so this is that spot's pocket number (the same shape as the Siemens table above, confirmed with `TOOL CALL` on the simulator); for a tool in the magazine it equals `/machine/toolArea/tool/pocketNumber`, and a tool not in the table gives `0`. The TNC7 User's Manual ('Pocket table tool_p.tch') describes reserving that pocket while the tool is in the spindle as the behaviour of a box magazine; with a setup that does not reserve it, or for a tool inserted by hand, the value can be `0` while the tool is in the spindle (not confirmed in our test environment).
 
 ## /machine/toolArea/magazineCount
 ```yaml
 value_type: "int"
 null_able: false
 required_filters: ["toolArea"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
@@ -3388,12 +3648,14 @@ On Siemens a machine without tool management has no magazine at all, so the valu
 
 **On Mitsubishi the magazine numbers are a fixed `1`-`5` range**, and only those with at least one pocket are counted. The spindle and the standby positions are a separate concept on that control, not magazines, so they never enter this count. `toolArea` accepts `1` up to the channel count; magazines belong to the whole machine, not to a part system, so every value gives the same answer.
 
+**Heidenhain** counts the magazine numbers (`1` and up) in the row names `magazine.pocket` of the pocket table (the `MAGAZIN` and `P` columns on the control's tool management screen). The spindle row (`0.0`) is not a magazine and is not counted. A control that answers it has no pocket table gives `0`. `toolArea` is `1` only.
+
 ## /machine/toolArea/magazineList
 ```yaml
 value_type: "objectArray"
 null_able: false
 required_filters: ["toolArea"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
@@ -3416,12 +3678,14 @@ Each entry:
 
 A machine with no magazine configured answers `[]`; a Fanuc control without the tool management option answers with status `-20`.
 
+**Heidenhain** gives one entry per magazine number in the pocket table, and `pocketCount` is that magazine's row count (on the simulator: `[{"magazineNumber": 1, "pocketCount": 50}]`). The spindle row (`0.0`) is not listed.
+
 ## /machine/toolArea/magazine/pocketCount
 ```yaml
 value_type: "int"
 null_able: false
 required_filters: ["toolArea", "magazine"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
@@ -3435,12 +3699,14 @@ A number that does not exist is rejected with status `-18`. **The numbers of the
 
 **Mitsubishi note**: magazine numbers are a fixed `1`-`5` range, so anything outside it is status `-18`, but **a magazine inside the range that does not actually exist answers `0` instead of being rejected**, because on this control the existence probe is the pocket-count query itself. When you need existence, read `/machine/toolArea/magazineList`. `toolArea` accepts `1` up to the channel count; magazines belong to the whole machine, not to a part system, so every value gives the same answer.
 
+**Heidenhain** returns the magazine's row count in the pocket table. Pocket numbers are the row names as they are, so there is no guarantee they run from `1` to this count (on the simulator the 50 rows are `1` to `41` and `50` to `58`). Check the numbers with `/machine/toolArea/magazine/pocketList`. `magazine=0` is the spindle row, so it is status `-18`.
+
 ## /machine/toolArea/magazine/pocketList
 ```yaml
 value_type: "objectArray"
 null_able: false
 required_filters: ["toolArea", "magazine"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
@@ -3450,7 +3716,7 @@ Each entry:
 
 | Field | Meaning |
 |---|---|
-| `pocketNumber` | the pocket number; every pocket appears. On Siemens and Mitsubishi they run from `1` to `/machine/toolArea/magazine/pocketCount`, on Fanuc from the magazine's start pot number (parameter `13223` and so on, usually `1`) for as many pockets as it has |
+| `pocketNumber` | the pocket number; every pocket appears. On Siemens and Mitsubishi they run from `1` to `/machine/toolArea/magazine/pocketCount`, on Fanuc from the magazine's start pot number (parameter `13223` and so on, usually `1`) for as many pockets as it has, on Heidenhain as the pocket table's rows (which can skip) |
 | `toolNumber` | the tool in that pocket. **`0` means the pocket is empty** |
 
 **This is the direction the other addresses cannot answer.** `/machine/toolArea/tool/pocketNumber` tells you which pocket a tool is in, but "what is in pocket N" and "where are the empty pockets" are answered only by this list.
@@ -3465,12 +3731,14 @@ The numbers of the buffer (spindle and changer) and the load/unload position are
 
 A magazine with no pockets answers `[]` on Siemens. Fanuc and Mitsubishi count only magazines that have pockets, so such a number is refused with status `-18`.
 
+**Heidenhain** lists the magazine's rows of the pocket table (the `MAGAZIN` and `P` columns on the control's tool management screen) in pocket number order. `toolNumber` is the row's tool number (`T`), and **the original spot of a tool now in the spindle is `0`**: when a tool goes into the spindle, the pocket table keeps its number in the original pocket to hold that spot (confirmed with `TOOL CALL` on the simulator), but no tool is actually in it. The tool side gives that spot through `/machine/toolArea/tool/originalPocketNumber`. Pocket numbers are the row names as they are and can skip (on the simulator `1` to `41` and `50` to `58`). `magazine=0` is the spindle row, so it is status `-18`. A `toolNumber` of `0` does not mean a tool can go there: the pocket may be locked (`/machine/toolArea/magazine/pocket/pocketDisabledOn`) or, according to the manual ('Pocket table tool_p.tch'), blocked as the neighbour of a special tool or, in a box magazine, by the columns that lock the pockets above, below, left or right (`LOCKED_*`).
+
 ## /machine/toolArea/magazine/pocket/toolNumber
 ```yaml
 value_type: "int"
 null_able: false
 required_filters: ["toolArea", "magazine", "pocket"]
-read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi"]
+read: ["nc_focas2_fanuc", "nc_opcua_siemens", "nc_ezsocket_mitsubishi", "nc_dnc_heidenhain"]
 write: []
 ```
 
@@ -3488,26 +3756,30 @@ The numbers of the buffer (spindle and changer) and the load/unload position are
 
 **Writing is not supported.** Overwriting the tool in a pocket would change the bookkeeping while the physical tool stayed put, and the changer would then reach for the wrong pocket at the next tool change. Moving a tool is the job of a magazine command, and deemesh does not expose one.
 
+**Heidenhain** returns the row's tool number (`T`) in the pocket table. The original spot of a tool now in the spindle is `0` (see `/machine/toolArea/magazine/pocketList`). A pocket number that is not in the table is status `-18`, and `magazine=0` is the spindle row, so it is status `-18`. A `toolNumber` of `0` does not mean a tool can go there: the pocket may be locked (`/machine/toolArea/magazine/pocket/pocketDisabledOn`) or, according to the manual ('Pocket table tool_p.tch'), blocked as the neighbour of a special tool or, in a box magazine, by the columns that lock the pockets above, below, left or right (`LOCKED_*`).
+
 ## /machine/toolArea/magazine/pocket/pocketDisabledOn
 ```yaml
 value_type: "boolean"
 null_able: false
 required_filters: ["toolArea", "magazine", "pocket"]
-read: ["nc_opcua_siemens"]
-write: ["nc_opcua_siemens"]
+read: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
+write: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
 ```
 
 Whether the pocket is **marked as not to be used**: damaged, or a place that must stay empty. `toolArea` + `magazine` + `pocket` filters. Returns `boolean`; both read and write are supported (`{"value": true}` disables it, `false` enables it).
 
-When `true` the machine skips this pocket when choosing where to put a tool. This is the `D` column on the machine's magazine screen, and on that screen the cell appears **only on rows for tools that occupy a pocket**, because it is a property of the pocket, not of the tool.
+When `true` the machine skips this pocket when choosing where to put a tool. On Siemens this is the `D` column on the magazine screen, and on that screen the cell appears **only on rows for tools that occupy a pocket**, because it is a property of the pocket, not of the tool. On Heidenhain it is the pocket table's lock field (`L`, below).
 
 Locking a tool is `/machine/toolArea/tool/toolUseStatus` (value `5`), which is separate. A disabled pocket does not disable the tool sitting in it; move that tool elsewhere and it is usable again.
 
 If it is already in that state, nothing happens and the write succeeds. A nonexistent pocket, and the numbers of the buffer and load/unload positions, are rejected with status `-18`.
 
-**Siemens only.** On Fanuc this lives in the tool management extension B option (`cnc_rdpot_property`), which deemesh does not use, so the address returns status `-20`.
+**Siemens and Heidenhain.** On Fanuc this lives in the tool management extension B option (`cnc_rdpot_property`), which deemesh does not use, so the address returns status `-20`.
 
 **Mitsubishi answers status `-20`.**
+
+**Heidenhain** uses the pocket table's lock field (`L`), for both reading and writing (written and read back on the simulator). Only this column is read: a spot blocked in a box magazine by a neighbour's `LOCKED_*` column reads `false` (our test environment has none, so this has not been confirmed). How the pocket table is handled depends on the machine (TNC7 User's Manual, 'Configuring a tool': a machine manufacturer's function or an external tool management system may handle it). On such a machine a written value may be changed or may conflict with that system, so check the machine manual. A pocket number that is not in the table is status `-18`, and `magazine=0` is the spindle row, so it is status `-18`.
 
 ## /machine/toolArea/toolGroupCount
 ```yaml
@@ -3666,6 +3938,7 @@ null_able: false
 required_filters: ["toolArea", "toolGroup"]
 read: ["nc_focas2_fanuc"]
 write: ["nc_focas2_fanuc"]
+codes: [{"value": 0, "name": "no monitoring"}, {"value": 1, "name": "time"}, {"value": 2, "name": "count"}]
 ```
 
 **On Fanuc this needs the Tool Life Management option.** A control without it refuses with status `-20` (not supported).
@@ -3747,6 +4020,7 @@ null_able: false
 required_filters: ["toolArea", "toolGroup"]
 read: ["nc_focas2_fanuc", "nc_ezsocket_mitsubishi"]
 write: []
+codes: [{"value": 0, "name": "no tool", "read": ["nc_focas2_fanuc"]}, {"value": 1, "name": "usable"}, {"value": 2, "name": "life expired"}, {"value": 3, "name": "skipped"}]
 ```
 
 **On Fanuc this needs the Tool Life Management option.** A control without it refuses with status `-20` (not supported).
@@ -3926,6 +4200,7 @@ null_able: false
 required_filters: ["toolArea", "toolGroup", "toolUseOrder"]
 read: ["nc_focas2_fanuc"]
 write: ["nc_focas2_fanuc"]
+codes: [{"value": 0, "name": "no tool"}, {"value": 1, "name": "usable"}, {"value": 2, "name": "life expired"}, {"value": 3, "name": "skipped"}]
 ```
 
 **On Fanuc this needs the Tool Life Management option.** A control without it refuses with status `-20` (not supported).
@@ -3937,6 +4212,7 @@ The **life status** of the tool at that position. `toolArea` + `toolGroup` + `to
 | `1` | still usable |
 | `2` | life used up |
 | `3` | skipped |
+| `0` | no usable tool in that slot (reads only) |
 
 **Write `1` after fitting a fresh insert**: turning a `2` back into a `1` is that operation.
 
@@ -3953,7 +4229,7 @@ Writes take `1`, `2` or `3` only. A `0` means "no tool", which is a deletion rat
 value_type: "int"
 null_able: false
 required_filters: ["toolArea", "tool"]
-read: ["nc_opcua_siemens"]
+read: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
 write: []
 ```
 
@@ -3967,14 +4243,16 @@ A `toolEdge/…` address that points at a nonexistent edge is rejected with stat
 
 A nonexistent tool is rejected with status `-18`. It does not answer that the tool has `0` edges.
 
-**Siemens only** (Fanuc and Mitsubishi return status `-20`). In both of those offset models one offset (set) number *is* one set of compensation values, so there is no per-tool edge layer. Earlier versions returned a fixed `1`; that asserted a dimension that does not exist, so it was removed. Fanuc's per-tool tool management data (`H`, `D`, life) is read from the per-tool addresses under `/machine/toolArea/tool/*`.
+**Siemens and Heidenhain** (Fanuc and Mitsubishi return status `-20`). In the Fanuc and Mitsubishi offset models one offset (set) number *is* one set of compensation values, so there is no per-tool edge layer. Earlier versions returned a fixed `1`; that asserted a dimension that does not exist, so it was removed. Fanuc's per-tool tool management data (`H`, `D`, life) is read from the per-tool addresses under `/machine/toolArea/tool/*`.
+
+**Heidenhain** returns the number of rows for that tool number: the tool's own row plus its index tools (rows such as `5.1` and `5.2` that follow the tool number), so a tool without indexes is `1`. **`toolEdge` is that index and starts at `0`**: the tool's own row is `toolEdge=0` and `5.1` is `toolEdge=1` (the number as shown on the control). **Index numbers can have gaps**: in our test environment the operator panel accepted `10.3` without `10.2` (the TNC7 User's Manual, 'Indexed tool', also says the numbers need not be sequential, and allows up to nine index tools per tool, so this value goes up to `10`), and this value was then `3` while `toolEdge=2` did not exist. Check which numbers exist with `/machine/toolArea/tool/toolEdge/toolEdgeExists`. A nonexistent tool and row `0` at the top of the table are status `-18`.
 
 ## /machine/toolArea/tool/toolEdge/toolEdgeExists
 ```yaml
 value_type: "boolean"
 null_able: false
 required_filters: ["toolArea", "tool", "toolEdge"]
-read: ["nc_opcua_siemens"]
+read: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
 write: ["nc_opcua_siemens"]
 ```
 
@@ -3990,20 +4268,22 @@ Asking about an edge that does not exist is not an error. It answers `false`. Si
 
 When the tool itself does not exist, every write (`true` or `false`) is status `-18`. When the tool cannot be read for a reason other than being absent (for example the account used to connect may not read tool data, so `BadUserAccessDenied` comes back), both reads and writes answer status `-17`.
 
-**Siemens only.**
+Reading is supported on Siemens and Heidenhain, writing on Siemens.
 
 **Fanuc and Mitsubishi answer with status `-20`.** Neither control's offset model has an edge layer under the tool (see `toolEdgeCount`); read compensation values from the channel offset table under `/machine/channel/toolOffset/…`.
+
+On **Heidenhain**, `toolEdge` is the tool table index: `toolEdge=0` is the tool's own row, so it is always `true` while the tool exists, and from `toolEdge=1` on it is the row of an index tool such as `5.1` that follows the tool number. A missing index is `false`; if the tool itself does not exist (including row `0` at the top of the table) it is status `-18`. Writing is status `-20` (deemesh does not create or delete rows on Heidenhain).
 
 ## /machine/toolArea/tool/toolEdge/toolType
 ```yaml
 value_type: "int"
 null_able: false
 required_filters: ["toolArea", "tool", "toolEdge"]
-read: ["nc_opcua_siemens"]
-write: ["nc_opcua_siemens"]
+read: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
+write: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
 ```
 
-The tool's **type code** (read + write, `int` + `desc`). **Uses the SINUMERIK DP1 code as-is**: the code scheme is an open classification owned by Siemens, so deemesh does not translate it, and the authority is the SINUMERIK tool-management manual (even if the vendor adds codes, the value is passed through as-is). Writes take an integer code `{"value": 500}`, for tool-setup automation, and the NCK judges code validity.
+The tool's **type code** (returns `int`). **On Siemens it uses the SINUMERIK DP1 code as-is** (read + write, with `desc`; Heidenhain uses a different code space without `desc`, below): the code scheme is an open classification owned by Siemens, so deemesh does not translate it, and the authority is the SINUMERIK tool-management manual (even if the vendor adds codes, the value is passed through as-is). Writes take an integer code `{"value": 500}`, for tool-setup automation, and the NCK judges code validity.
 
 | Family | Meaning | Examples |
 |---|---|---|
@@ -4019,9 +4299,11 @@ Known codes come with their meaning in `desc` (`{"value": 500, "desc": "turning 
 
 It is also the reference value that determines the length1/2 axis assignment and radius interpretation (cutter/nose) for turning tools (5xx).
 
-**Write caution**: a nonexistent tool, or an edge that tool does not have, is rejected with status `-18` (the message says whether it is the tool or the edge that is missing). The machine itself would create a new edge when writing to edge count + 1, but a single typo would leave an unintended edge behind, so deemesh allows **modifying existing edges only** (create/delete via `toolEdgeExists`).
+**Write caution (Siemens)**: a nonexistent tool, or an edge that tool does not have, is rejected with status `-18` (the message says whether it is the tool or the edge that is missing). The machine itself would create a new edge when writing to edge count + 1, but a single typo would leave an unintended edge behind, so deemesh allows **modifying existing edges only** (create/delete via `toolEdgeExists`).
 
 **Fanuc and Mitsubishi answer with status `-20`.** Neither control's offset model has an edge layer under the tool (see `toolEdgeCount`); read compensation values from the channel offset table under `/machine/channel/toolOffset/…`.
+
+**Heidenhain** returns the tool type number from the tool table (`TYP`) as is. It is a different code space from the Siemens codes; deemesh does not translate it, does not unify it across controls, and attaches no `desc`. The numbers mean what the TNC7 User's Manual, 'Tool types', lists for them (in our test environment a milling tool was `9`, a drill `1`, an NC center drill `4`, a chamfer mill `24` and a turning tool `29`). The tool type shown on the control's tool management screen tells the same. `toolEdge=0` is the tool's own row and from `toolEdge=1` on it is the value of an index tool row (such as `5.1`). Writing is supported as well: the number is written as it is, and a value the control does not accept is status `-16` with the allowed range in the error message (`0` to `99` in our test environment). Check what type a written number means against the tool type shown on the control's tool management screen.
 
 ## /machine/toolArea/tool/toolEdge/toolHNumber
 ```yaml
@@ -4047,8 +4329,8 @@ It is the `5` in a program line such as `G43 H5`. On Siemens it is the number **
 value_type: "int"
 null_able: false
 required_filters: ["toolArea", "tool", "toolEdge"]
-read: ["nc_opcua_siemens"]
-write: ["nc_opcua_siemens"]
+read: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
+write: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
 ```
 
 The **number of teeth** of that cutting edge, the count you mean by "a 4-flute end mill". `toolArea` + `tool` + `toolEdge` filters. Returns `int`; both read and write are supported. Write `{"value": 4}`.
@@ -4057,49 +4339,55 @@ The **number of teeth** of that cutting edge, the count you mean by "a 4-flute e
 
 **It is stored per edge.** A single body can carry cutting sections of different diameters, whose tooth counts may differ, so the value belongs to the edge rather than to the tool.
 
-**It does not always match the `N` column on the machine's screen.** That column doubles up: it shows the tooth count for milling tools and the point angle for drills. Measured, a drill returned `0` here while the screen showed `118.0` (the point angle). deemesh keeps the two apart so that one address never means a different physical quantity depending on the tool type.
+**On Siemens it does not always match the `N` column on the machine's screen.** That column doubles up: it shows the tooth count for milling tools and the point angle for drills. Measured, a drill returned `0` here while the screen showed `118.0` (the point angle). deemesh keeps the two apart so that one address never means a different physical quantity depending on the tool type.
 
-**Siemens only.** A nonexistent tool or edge (D) is rejected with status `-18`.
+**Siemens and Heidenhain.** A nonexistent tool or edge (D) is rejected with status `-18`.
 
 **Fanuc and Mitsubishi answer with status `-20`.** Neither control's offset model has an edge layer under the tool (see `toolEdgeCount`); read compensation values from the channel offset table under `/machine/channel/toolOffset/…`.
+
+**Heidenhain** uses the number of cutting edges in the tool table (`CUT`). `toolEdge=0` is the tool's own row and from `toolEdge=1` on it is the value of an index tool row (such as `5.1`). Writing is supported as well; a value the control does not accept is status `-16` with the allowed range in the error message (`0` to `99` in our test environment).
 
 ## /machine/toolArea/tool/toolEdge/toolLengthGeometry
 ```yaml
 value_type: "float"
 null_able: false
 required_filters: ["toolArea", "tool", "toolEdge"]
-read: ["nc_opcua_siemens"]
-write: ["nc_opcua_siemens"]
+read: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
+write: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
 ```
 
-The **length1 geometry** value (SINUMERIK `DP3`). For turning tools it usually corresponds to the X direction, but the axis correspondence is a rule set by the tool type and active plane, so the SDK does not translate it.
+The **length1 geometry** value. On Siemens it is SINUMERIK `DP3`; for turning tools it usually corresponds to the X direction, but the axis correspondence is a rule set by the tool type and active plane, so the SDK does not translate it.
 
-Returns `float`; both read and write are supported; write `{"value": 125.0}`. Requires the `toolArea` + `tool` + `toolEdge` filters. **Siemens only**; specifying a nonexistent tool/edge surfaces an error. The **applied value is geometry + wear**.
+Returns `float`; both read and write are supported; write `{"value": 125.0}`. Requires the `toolArea` + `tool` + `toolEdge` filters. **Siemens and Heidenhain**; specifying a nonexistent tool/edge surfaces an error. The **applied value is geometry + wear**.
 
 The unit follows the machine setting (mm or inch). Only `G700`/`G710` change the unit of tool offsets (Programming Manual): `/machine/channel/gModalCategory/gModal?gModalCategory=4` reading `G710` means metric and `G700` means inch. `G70`/`G71` switch only coordinates, so under them (or under neither) tool offsets are in the unit of the basic system (`MD10240`). This address carries no `unit` field, because the unit is not fixed per address.
 
-**Write caution**: a nonexistent tool, or an edge that tool does not have, is rejected with status `-18` (the message says whether it is the tool or the edge that is missing). The machine itself would create a new edge when writing to edge count + 1, but a single typo would leave an unintended edge behind, so deemesh allows **modifying existing edges only** (create/delete via `toolEdgeExists`).
+**Write caution (Siemens)**: a nonexistent tool, or an edge that tool does not have, is rejected with status `-18` (the message says whether it is the tool or the edge that is missing). The machine itself would create a new edge when writing to edge count + 1, but a single typo would leave an unintended edge behind, so deemesh allows **modifying existing edges only** (create/delete via `toolEdgeExists`).
 
 **Fanuc and Mitsubishi answer with status `-20`.** Neither control's offset model has an edge layer under the tool (see `toolEdgeCount`); read compensation values from the channel offset table under `/machine/channel/toolOffset/…`.
+
+**Heidenhain** uses the tool table's length (`L`) (wear is `DL`). The table holds geometry plus wear, and during machining a delta from the NC program (`TOOL CALL`) or from a compensation table can be added (TNC7 User's Manual, 'Tool compensation for tool length and tool radius'). `toolEdge=0` is the tool's own row and from `toolEdge=1` on it is an index tool row (such as `5.1`). **Unlike the unit rule above, the unit is always mm**: deemesh selects mm when it reads and writes through DNC (not confirmed with a tool table created in inch). Writing is supported; a value the control does not accept is status `-16`, with the field's allowed range in the error message (`-99999.9999` to `99999.9999` on the simulator, the input range in the manual's 'Tool table tool.t'). A nonexistent tool or index, and row `0` at the top of the table, are status `-18`. If the length cell is blank in the control's tool table (as in a row just added with tool insert; the manual's 'Tool management' also says these cells of a new tool start out empty), it is status `-22`; it reads once the cell is filled, on the control or by writing this address. **Turning, grinding and dressing tools answer status `-18`** (both read and write). deemesh tells them by the tool type column (`TYP`): turning `29`, grinding `30` and dressing `31`, numbered as in the TNC7 User's Manual, 'Tool types', which says the tool table's length and radius have no effect on those tools. In our test environment the turning tools had `L`, `R`, `DL` and `DR` all `0` in the tool table, and their geometry was in the `ZL`, `XL`, `YL` and `RS` columns of the turning tool table (`toolturn.trn`) and in its wear columns (grinding and dressing tools were not tested). The geometry of a turning tool comes from `toolXGeometry`, `toolZGeometry`, `toolYGeometry`, `toolNoseRadiusGeometry` and their wear addresses.
 
 ## /machine/toolArea/tool/toolEdge/toolLengthWear
 ```yaml
 value_type: "float"
 null_able: false
 required_filters: ["toolArea", "tool", "toolEdge"]
-read: ["nc_opcua_siemens"]
-write: ["nc_opcua_siemens"]
+read: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
+write: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
 ```
 
 The **length1 wear** value (SINUMERIK `DP12`).
 
-Returns `float`; both read and write are supported; write `{"value": 125.0}`. Requires the `toolArea` + `tool` + `toolEdge` filters. **Siemens only**; specifying a nonexistent tool/edge surfaces an error. The **applied value is geometry + wear**.
+Returns `float`; both read and write are supported; write `{"value": 125.0}`. Requires the `toolArea` + `tool` + `toolEdge` filters. **Siemens and Heidenhain**; specifying a nonexistent tool/edge surfaces an error. The **applied value is geometry + wear**.
 
 The unit follows the machine setting (mm or inch). Only `G700`/`G710` change the unit of tool offsets (Programming Manual): `/machine/channel/gModalCategory/gModal?gModalCategory=4` reading `G710` means metric and `G700` means inch. `G70`/`G71` switch only coordinates, so under them (or under neither) tool offsets are in the unit of the basic system (`MD10240`). This address carries no `unit` field, because the unit is not fixed per address.
 
-**Write caution**: a nonexistent tool, or an edge that tool does not have, is rejected with status `-18` (the message says whether it is the tool or the edge that is missing). The machine itself would create a new edge when writing to edge count + 1, but a single typo would leave an unintended edge behind, so deemesh allows **modifying existing edges only** (create/delete via `toolEdgeExists`).
+**Write caution (Siemens)**: a nonexistent tool, or an edge that tool does not have, is rejected with status `-18` (the message says whether it is the tool or the edge that is missing). The machine itself would create a new edge when writing to edge count + 1, but a single typo would leave an unintended edge behind, so deemesh allows **modifying existing edges only** (create/delete via `toolEdgeExists`).
 
 **Fanuc and Mitsubishi answer with status `-20`.** Neither control's offset model has an edge layer under the tool (see `toolEdgeCount`); read compensation values from the channel offset table under `/machine/channel/toolOffset/…`.
+
+**Heidenhain** uses the tool table's length wear (`DL`) (geometry is `L`). The table holds geometry plus wear, and during machining a delta from the NC program (`TOOL CALL`) or from a compensation table can be added (TNC7 User's Manual, 'Tool compensation for tool length and tool radius'). Measuring cycles can also write this cell (manual). `toolEdge=0` is the tool's own row and from `toolEdge=1` on it is an index tool row (such as `5.1`). **Unlike the unit rule above, the unit is always mm**: deemesh selects mm when it reads and writes through DNC (not confirmed with a tool table created in inch). Writing is supported; a value the control does not accept is status `-16`, with the field's allowed range in the error message (`-999.9999` to `999.9999` on the simulator). It also accepted a value for the tool in the spindle (simulator). A nonexistent tool or index, and row `0` at the top of the table, are status `-18`. An empty cell is status `-22`; it reads once the cell is filled. **Turning, grinding and dressing tools answer status `-18`** (both read and write). deemesh tells them by the tool type column (`TYP`): turning `29`, grinding `30` and dressing `31`, numbered as in the TNC7 User's Manual, 'Tool types', which says the tool table's length and radius have no effect on those tools. In our test environment the turning tools had `L`, `R`, `DL` and `DR` all `0` in the tool table, and their geometry was in the `ZL`, `XL`, `YL` and `RS` columns of the turning tool table (`toolturn.trn`) and in its wear columns (grinding and dressing tools were not tested). The geometry of a turning tool comes from `toolXGeometry`, `toolZGeometry`, `toolYGeometry`, `toolNoseRadiusGeometry` and their wear addresses.
 
 ## /machine/toolArea/tool/toolEdge/toolLength2Geometry
 ```yaml
@@ -4182,80 +4470,190 @@ The unit follows the machine setting (mm or inch). Only `G700`/`G710` change the
 value_type: "float"
 null_able: false
 required_filters: ["toolArea", "tool", "toolEdge"]
-read: ["nc_opcua_siemens"]
-write: ["nc_opcua_siemens"]
+read: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
+write: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
 ```
 
-The **cutter radius geometry** value (SINUMERIK `DP6`, from the milling-tool viewpoint). It points at the **same storage** as `toolNoseRadiusGeometry`; which address you use is your declaration of intent. The SDK does not inspect the tool type.
+The **cutter radius geometry** value. On Siemens it is SINUMERIK `DP6` (from the milling-tool viewpoint) and points at the **same storage** as `toolNoseRadiusGeometry`, so which address you use is your declaration of intent; on Siemens the SDK therefore does not inspect the tool type.
 
-Returns `float`; both read and write are supported; write `{"value": 125.0}`. Requires the `toolArea` + `tool` + `toolEdge` filters. **Siemens only**; specifying a nonexistent tool/edge surfaces an error. The **applied value is geometry + wear**.
+Returns `float`; both read and write are supported; write `{"value": 125.0}`. Requires the `toolArea` + `tool` + `toolEdge` filters. **Siemens and Heidenhain**; specifying a nonexistent tool/edge surfaces an error. The **applied value is geometry + wear**.
 
 The unit follows the machine setting (mm or inch). Only `G700`/`G710` change the unit of tool offsets (Programming Manual): `/machine/channel/gModalCategory/gModal?gModalCategory=4` reading `G710` means metric and `G700` means inch. `G70`/`G71` switch only coordinates, so under them (or under neither) tool offsets are in the unit of the basic system (`MD10240`). This address carries no `unit` field, because the unit is not fixed per address.
 
-**Write caution**: a nonexistent tool, or an edge that tool does not have, is rejected with status `-18` (the message says whether it is the tool or the edge that is missing). The machine itself would create a new edge when writing to edge count + 1, but a single typo would leave an unintended edge behind, so deemesh allows **modifying existing edges only** (create/delete via `toolEdgeExists`).
+**Write caution (Siemens)**: a nonexistent tool, or an edge that tool does not have, is rejected with status `-18` (the message says whether it is the tool or the edge that is missing). The machine itself would create a new edge when writing to edge count + 1, but a single typo would leave an unintended edge behind, so deemesh allows **modifying existing edges only** (create/delete via `toolEdgeExists`).
 
 **The number can differ from what the machine's screen shows.** This value is a **radius**, as the name says, while tool-list and offset screens commonly display the **diameter (Ø)**. Measured (2026-07): `BALLNOSE_D8` stores `4.0` and the HMI shows `8.000`. deemesh emits what the machine stores and does not multiply by two.
 
 **Fanuc and Mitsubishi answer with status `-20`.** Neither control's offset model has an edge layer under the tool (see `toolEdgeCount`); read compensation values from the channel offset table under `/machine/channel/toolOffset/…`.
+
+**Heidenhain** uses the tool table's radius (`R`) (wear is `DR`; the control shows it as a radius too). The table holds geometry plus wear, and during machining a delta from the NC program (`TOOL CALL`) or from a compensation table can be added (TNC7 User's Manual, 'Tool compensation for tool length and tool radius'). `toolEdge=0` is the tool's own row and from `toolEdge=1` on it is an index tool row (such as `5.1`). **Unlike the unit rule above, the unit is always mm**: deemesh selects mm when it reads and writes through DNC (not confirmed with a tool table created in inch). Writing is supported; a value the control does not accept is status `-16`, with the field's allowed range in the error message. A nonexistent tool or index, and row `0` at the top of the table, are status `-18`. If the radius cell is blank in the control's tool table (as in a row just added with tool insert; the manual's 'Tool management' also says these cells of a new tool start out empty), it is status `-22`; it reads once the cell is filled, on the control or by writing this address. **Turning, grinding and dressing tools answer status `-18`** (both read and write). deemesh tells them by the tool type column (`TYP`): turning `29`, grinding `30` and dressing `31`, numbered as in the TNC7 User's Manual, 'Tool types', which says the tool table's length and radius have no effect on those tools. In our test environment the turning tools had `L`, `R`, `DL` and `DR` all `0` in the tool table, and their geometry was in the `ZL`, `XL`, `YL` and `RS` columns of the turning tool table (`toolturn.trn`) and in its wear columns (grinding and dressing tools were not tested). The geometry of a turning tool comes from `toolXGeometry`, `toolZGeometry`, `toolYGeometry`, `toolNoseRadiusGeometry` and their wear addresses.
 
 ## /machine/toolArea/tool/toolEdge/toolRadiusWear
 ```yaml
 value_type: "float"
 null_able: false
 required_filters: ["toolArea", "tool", "toolEdge"]
-read: ["nc_opcua_siemens"]
-write: ["nc_opcua_siemens"]
+read: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
+write: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
 ```
 
-The **cutter radius wear** value (SINUMERIK `DP15`). Same storage as `toolNoseRadiusWear`.
+The **cutter radius wear** value. On Siemens it is SINUMERIK `DP15`, the same storage as `toolNoseRadiusWear`.
 
-Returns `float`; both read and write are supported; write `{"value": 125.0}`. Requires the `toolArea` + `tool` + `toolEdge` filters. **Siemens only**; specifying a nonexistent tool/edge surfaces an error. The **applied value is geometry + wear**.
+Returns `float`; both read and write are supported; write `{"value": 125.0}`. Requires the `toolArea` + `tool` + `toolEdge` filters. **Siemens and Heidenhain**; specifying a nonexistent tool/edge surfaces an error. The **applied value is geometry + wear**.
 
 The unit follows the machine setting (mm or inch). Only `G700`/`G710` change the unit of tool offsets (Programming Manual): `/machine/channel/gModalCategory/gModal?gModalCategory=4` reading `G710` means metric and `G700` means inch. `G70`/`G71` switch only coordinates, so under them (or under neither) tool offsets are in the unit of the basic system (`MD10240`). This address carries no `unit` field, because the unit is not fixed per address.
 
-**Write caution**: a nonexistent tool, or an edge that tool does not have, is rejected with status `-18` (the message says whether it is the tool or the edge that is missing). The machine itself would create a new edge when writing to edge count + 1, but a single typo would leave an unintended edge behind, so deemesh allows **modifying existing edges only** (create/delete via `toolEdgeExists`).
+**Write caution (Siemens)**: a nonexistent tool, or an edge that tool does not have, is rejected with status `-18` (the message says whether it is the tool or the edge that is missing). The machine itself would create a new edge when writing to edge count + 1, but a single typo would leave an unintended edge behind, so deemesh allows **modifying existing edges only** (create/delete via `toolEdgeExists`).
 
 **The number can differ from what the machine's screen shows.** This value is a **radius**, as the name says, while tool-list and offset screens commonly display the **diameter (Ø)**. Measured (2026-07): `BALLNOSE_D8` stores `4.0` and the HMI shows `8.000`. deemesh emits what the machine stores and does not multiply by two.
 
 **Fanuc and Mitsubishi answer with status `-20`.** Neither control's offset model has an edge layer under the tool (see `toolEdgeCount`); read compensation values from the channel offset table under `/machine/channel/toolOffset/…`.
+
+**Heidenhain** uses the tool table's radius wear (`DR`) (geometry is `R`). The table holds geometry plus wear, and during machining a delta from the NC program (`TOOL CALL`) or from a compensation table can be added (TNC7 User's Manual, 'Tool compensation for tool length and tool radius'). Measuring cycles can also write this cell (manual). `toolEdge=0` is the tool's own row and from `toolEdge=1` on it is an index tool row (such as `5.1`). **Unlike the unit rule above, the unit is always mm**: deemesh selects mm when it reads and writes through DNC (not confirmed with a tool table created in inch). Writing is supported; a value the control does not accept is status `-16`, with the field's allowed range in the error message. A nonexistent tool or index, and row `0` at the top of the table, are status `-18`. An empty cell is status `-22`; it reads once the cell is filled. **Turning, grinding and dressing tools answer status `-18`** (both read and write). deemesh tells them by the tool type column (`TYP`): turning `29`, grinding `30` and dressing `31`, numbered as in the TNC7 User's Manual, 'Tool types', which says the tool table's length and radius have no effect on those tools. In our test environment the turning tools had `L`, `R`, `DL` and `DR` all `0` in the tool table, and their geometry was in the `ZL`, `XL`, `YL` and `RS` columns of the turning tool table (`toolturn.trn`) and in its wear columns (grinding and dressing tools were not tested). The geometry of a turning tool comes from `toolXGeometry`, `toolZGeometry`, `toolYGeometry`, `toolNoseRadiusGeometry` and their wear addresses.
 
 ## /machine/toolArea/tool/toolEdge/toolNoseRadiusGeometry
 ```yaml
 value_type: "float"
 null_able: false
 required_filters: ["toolArea", "tool", "toolEdge"]
-read: ["nc_opcua_siemens"]
-write: ["nc_opcua_siemens"]
+read: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
+write: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
 ```
 
-The **nose radius geometry** value (SINUMERIK `DP6`, from the turning-tool viewpoint). Same storage as `toolRadiusGeometry`.
+The **nose radius geometry** value (SINUMERIK `DP6`, from the turning-tool viewpoint). On Siemens, same storage as `toolRadiusGeometry`.
 
-Returns `float`; both read and write are supported; write `{"value": 125.0}`. Requires the `toolArea` + `tool` + `toolEdge` filters. **Siemens only**; specifying a nonexistent tool/edge surfaces an error. The **applied value is geometry + wear**.
+Returns `float`; both read and write are supported; write `{"value": 125.0}`. Requires the `toolArea` + `tool` + `toolEdge` filters. **Siemens and Heidenhain**; specifying a nonexistent tool/edge surfaces an error. The **table holds geometry plus wear**, and during machining a delta from the NC program (`FUNCTION TURNDATA CORR`) or from a compensation table can be added (TNC7 User's Manual, 'Compensating turning tools with FUNCTION TURNDATA CORR (option 50)').
 
 The unit follows the machine setting (mm or inch). Only `G700`/`G710` change the unit of tool offsets (Programming Manual): `/machine/channel/gModalCategory/gModal?gModalCategory=4` reading `G710` means metric and `G700` means inch. `G70`/`G71` switch only coordinates, so under them (or under neither) tool offsets are in the unit of the basic system (`MD10240`). This address carries no `unit` field, because the unit is not fixed per address.
 
-**Write caution**: a nonexistent tool, or an edge that tool does not have, is rejected with status `-18` (the message says whether it is the tool or the edge that is missing). The machine itself would create a new edge when writing to edge count + 1, but a single typo would leave an unintended edge behind, so deemesh allows **modifying existing edges only** (create/delete via `toolEdgeExists`).
+**Write caution (Siemens)**: a nonexistent tool, or an edge that tool does not have, is rejected with status `-18` (the message says whether it is the tool or the edge that is missing). The machine itself would create a new edge when writing to edge count + 1, but a single typo would leave an unintended edge behind, so deemesh allows **modifying existing edges only** (create/delete via `toolEdgeExists`).
 
 **Fanuc and Mitsubishi answer with status `-20`.** Neither control's offset model has an edge layer under the tool (see `toolEdgeCount`); read compensation values from the channel offset table under `/machine/channel/toolOffset/…`.
+
+**Heidenhain** uses the `RS` field of the turning tool table (`toolturn.trn`) (the wear is `toolNoseRadiusWear` (`DRS`); the applied value is geometry + wear). Unlike Siemens it is not the same storage as `toolRadiusGeometry`: the nose radius of a turning tool is read only through this address, and a tool with no row in the turning tool table (a milling tool, for example) answers status `-18` (its radius is `toolRadiusGeometry`); `toolRadiusGeometry` answers status `-18` for a tool whose tool type (`TYP`) is turning, grinding or dressing. `toolEdge=0` is the tool's own row and from `toolEdge=1` on it is an index tool row (such as `320.1`). **Unlike the unit rule above, the unit is always mm**: deemesh selects mm when it reads and writes through DNC. Writing is supported; a value the control does not accept is status `-16`, with the field's allowed range in the error message. When the turning tool table is not found the status is `-20` (the TNC7 User's Manual describes this table as a feature of software option 50; our test environment has the table, so that case has not been confirmed). A nonexistent tool or index, and row `0` at the top of the table, are status `-18`. Reading and writing were confirmed on the TNC7 programming station.
 
 ## /machine/toolArea/tool/toolEdge/toolNoseRadiusWear
 ```yaml
 value_type: "float"
 null_able: false
 required_filters: ["toolArea", "tool", "toolEdge"]
-read: ["nc_opcua_siemens"]
-write: ["nc_opcua_siemens"]
+read: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
+write: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
 ```
 
-The **nose radius wear** value (SINUMERIK `DP15`). Same storage as `toolRadiusWear`.
+The **nose radius wear** value (SINUMERIK `DP15`). On Siemens, same storage as `toolRadiusWear`.
 
-Returns `float`; both read and write are supported; write `{"value": 125.0}`. Requires the `toolArea` + `tool` + `toolEdge` filters. **Siemens only**; specifying a nonexistent tool/edge surfaces an error. The **applied value is geometry + wear**.
+Returns `float`; both read and write are supported; write `{"value": 125.0}`. Requires the `toolArea` + `tool` + `toolEdge` filters. **Siemens and Heidenhain**; specifying a nonexistent tool/edge surfaces an error. The **table holds geometry plus wear**, and during machining a delta from the NC program (`FUNCTION TURNDATA CORR`) or from a compensation table can be added (TNC7 User's Manual, 'Compensating turning tools with FUNCTION TURNDATA CORR (option 50)'). Touch probe cycles that measure the workpiece can also write this wear column (manual, 'Turning tool table toolturn.trn (option 50)').
 
 The unit follows the machine setting (mm or inch). Only `G700`/`G710` change the unit of tool offsets (Programming Manual): `/machine/channel/gModalCategory/gModal?gModalCategory=4` reading `G710` means metric and `G700` means inch. `G70`/`G71` switch only coordinates, so under them (or under neither) tool offsets are in the unit of the basic system (`MD10240`). This address carries no `unit` field, because the unit is not fixed per address.
 
-**Write caution**: a nonexistent tool, or an edge that tool does not have, is rejected with status `-18` (the message says whether it is the tool or the edge that is missing). The machine itself would create a new edge when writing to edge count + 1, but a single typo would leave an unintended edge behind, so deemesh allows **modifying existing edges only** (create/delete via `toolEdgeExists`).
+**Write caution (Siemens)**: a nonexistent tool, or an edge that tool does not have, is rejected with status `-18` (the message says whether it is the tool or the edge that is missing). The machine itself would create a new edge when writing to edge count + 1, but a single typo would leave an unintended edge behind, so deemesh allows **modifying existing edges only** (create/delete via `toolEdgeExists`).
 
 **Fanuc and Mitsubishi answer with status `-20`.** Neither control's offset model has an edge layer under the tool (see `toolEdgeCount`); read compensation values from the channel offset table under `/machine/channel/toolOffset/…`.
+
+**Heidenhain** uses the `DRS` field of the turning tool table (`toolturn.trn`) (the geometry is `toolNoseRadiusGeometry` (`RS`); the applied value is geometry + wear). Unlike Siemens it is not the same storage as `toolRadiusWear`: the nose radius of a turning tool is read only through this address, and a tool with no row in the turning tool table (a milling tool, for example) answers status `-18` (its radius is `toolRadiusGeometry`); `toolRadiusGeometry` answers status `-18` for a tool whose tool type (`TYP`) is turning, grinding or dressing. `toolEdge=0` is the tool's own row and from `toolEdge=1` on it is an index tool row (such as `320.1`). **Unlike the unit rule above, the unit is always mm**: deemesh selects mm when it reads and writes through DNC. Writing is supported; a value the control does not accept is status `-16`, with the field's allowed range in the error message. When the turning tool table is not found the status is `-20` (the TNC7 User's Manual describes this table as a feature of software option 50; our test environment has the table, so that case has not been confirmed). A nonexistent tool or index, and row `0` at the top of the table, are status `-18`. Reading and writing were confirmed on the TNC7 programming station.
+
+## /machine/toolArea/tool/toolEdge/toolXGeometry
+```yaml
+value_type: "float"
+null_able: false
+required_filters: ["toolArea", "tool", "toolEdge"]
+read: ["nc_dnc_heidenhain"]
+write: ["nc_dnc_heidenhain"]
+```
+
+The **X-direction length geometry** value of a turning tool. It is the `XL` field of the Heidenhain turning tool table (`toolturn.trn`); the wear is `toolXWear` (`DXL`). It is the length in the X direction from the tool carrier preset, "tool length 2" in the control's dialog (manual, 'Turning tool table toolturn.trn (option 50)'). The **table holds geometry plus wear**, and during machining a delta from the NC program (`FUNCTION TURNDATA CORR`) or from a compensation table can be added (TNC7 User's Manual, 'Compensating turning tools with FUNCTION TURNDATA CORR (option 50)'). Here X is not an axis name but a fixed column of that table, that is, a **directional component of the tool dimensions**.
+
+Returns `float`; both read and write are supported; write `{"value": 45.0}`. Requires the `toolArea` + `tool` + `toolEdge` filters. `toolEdge=0` is the tool's own row and from `toolEdge=1` on it is an index tool row (such as `320.1`). **The unit is always mm**: deemesh selects mm when it reads and writes through DNC (so no `unit` field is attached).
+
+**Only turning tools answer.** A tool with no row in the turning tool table (a milling tool, for example) answers status `-18`, and its length and radius are read through `toolLengthGeometry` and `toolRadiusGeometry`; those two addresses answer status `-18` for a tool whose tool type (`TYP`) is turning, grinding or dressing. When the turning tool table is not found the status is `-20` (the TNC7 User's Manual describes this table as a feature of software option 50; our test environment has the table, so that case has not been confirmed). A nonexistent tool or index, and row `0` at the top of the table, are status `-18` as well. A value the control does not accept is status `-16`, with the field's allowed range in the error message (`-99999.9999` to `99999.9999` on the simulator). Reading and writing were confirmed on the TNC7 programming station.
+
+**Heidenhain only.** Fanuc and Mitsubishi answer status `-20`; read a lathe's X-direction compensation from the channel offset table at `/machine/channel/toolOffset/toolXGeometry`. Siemens answers status `-20` too: its per-tool table has lengths 1 to 3 (`toolLengthGeometry`, `toolLength2Geometry`, `toolLength3Geometry`) instead of X, Y and Z columns, and which length is which direction depends on the tool type and the active plane, so deemesh does not translate it.
+
+## /machine/toolArea/tool/toolEdge/toolXWear
+```yaml
+value_type: "float"
+null_able: false
+required_filters: ["toolArea", "tool", "toolEdge"]
+read: ["nc_dnc_heidenhain"]
+write: ["nc_dnc_heidenhain"]
+```
+
+The **X-direction length wear** value of a turning tool. It is the `DXL` field of the Heidenhain turning tool table (`toolturn.trn`); the geometry is `toolXGeometry` (`XL`). The **table holds geometry plus wear**, and during machining a delta from the NC program (`FUNCTION TURNDATA CORR`) or from a compensation table can be added (TNC7 User's Manual, 'Compensating turning tools with FUNCTION TURNDATA CORR (option 50)'). Touch probe cycles that measure the workpiece can also write this wear column (manual, 'Turning tool table toolturn.trn (option 50)'). Here X is not an axis name but a fixed column of that table, that is, a **directional component of the tool dimensions**.
+
+Returns `float`; both read and write are supported; write `{"value": 0.05}`. Requires the `toolArea` + `tool` + `toolEdge` filters. `toolEdge=0` is the tool's own row and from `toolEdge=1` on it is an index tool row (such as `320.1`). **The unit is always mm**: deemesh selects mm when it reads and writes through DNC (so no `unit` field is attached).
+
+**Only turning tools answer.** A tool with no row in the turning tool table (a milling tool, for example) answers status `-18`, and its length and radius are read through `toolLengthGeometry` and `toolRadiusGeometry`; those two addresses answer status `-18` for a tool whose tool type (`TYP`) is turning, grinding or dressing. When the turning tool table is not found the status is `-20` (the TNC7 User's Manual describes this table as a feature of software option 50; our test environment has the table, so that case has not been confirmed). A nonexistent tool or index, and row `0` at the top of the table, are status `-18` as well. A value the control does not accept is status `-16`, with the field's allowed range in the error message (`-99999.9999` to `99999.9999` on the simulator). Reading and writing were confirmed on the TNC7 programming station.
+
+**Heidenhain only.** Fanuc and Mitsubishi answer status `-20`; read a lathe's X-direction compensation from the channel offset table at `/machine/channel/toolOffset/toolXWear`. Siemens answers status `-20` too: its per-tool table has lengths 1 to 3 (`toolLengthGeometry`, `toolLength2Geometry`, `toolLength3Geometry`) instead of X, Y and Z columns, and which length is which direction depends on the tool type and the active plane, so deemesh does not translate it.
+
+## /machine/toolArea/tool/toolEdge/toolZGeometry
+```yaml
+value_type: "float"
+null_able: false
+required_filters: ["toolArea", "tool", "toolEdge"]
+read: ["nc_dnc_heidenhain"]
+write: ["nc_dnc_heidenhain"]
+```
+
+The **Z-direction length geometry** value of a turning tool. It is the `ZL` field of the Heidenhain turning tool table (`toolturn.trn`); the wear is `toolZWear` (`DZL`). It is the length in the Z direction from the tool carrier preset, "tool length 1" in the control's dialog (manual, 'Turning tool table toolturn.trn (option 50)'). The **table holds geometry plus wear**, and during machining a delta from the NC program (`FUNCTION TURNDATA CORR`) or from a compensation table can be added (TNC7 User's Manual, 'Compensating turning tools with FUNCTION TURNDATA CORR (option 50)'). Here Z is not an axis name but a fixed column of that table, that is, a **directional component of the tool dimensions**.
+
+Returns `float`; both read and write are supported; write `{"value": 70.0}`. Requires the `toolArea` + `tool` + `toolEdge` filters. `toolEdge=0` is the tool's own row and from `toolEdge=1` on it is an index tool row (such as `320.1`). **The unit is always mm**: deemesh selects mm when it reads and writes through DNC (so no `unit` field is attached).
+
+**Only turning tools answer.** A tool with no row in the turning tool table (a milling tool, for example) answers status `-18`, and its length and radius are read through `toolLengthGeometry` and `toolRadiusGeometry`; those two addresses answer status `-18` for a tool whose tool type (`TYP`) is turning, grinding or dressing. When the turning tool table is not found the status is `-20` (the TNC7 User's Manual describes this table as a feature of software option 50; our test environment has the table, so that case has not been confirmed). A nonexistent tool or index, and row `0` at the top of the table, are status `-18` as well. A value the control does not accept is status `-16`, with the field's allowed range in the error message (`-99999.9999` to `99999.9999` on the simulator). Reading and writing were confirmed on the TNC7 programming station.
+
+**Heidenhain only.** Fanuc and Mitsubishi answer status `-20`; read a lathe's Z-direction compensation from the channel offset table at `/machine/channel/toolOffset/toolZGeometry`. Siemens answers status `-20` too: its per-tool table has lengths 1 to 3 (`toolLengthGeometry`, `toolLength2Geometry`, `toolLength3Geometry`) instead of X, Y and Z columns, and which length is which direction depends on the tool type and the active plane, so deemesh does not translate it.
+
+## /machine/toolArea/tool/toolEdge/toolZWear
+```yaml
+value_type: "float"
+null_able: false
+required_filters: ["toolArea", "tool", "toolEdge"]
+read: ["nc_dnc_heidenhain"]
+write: ["nc_dnc_heidenhain"]
+```
+
+The **Z-direction length wear** value of a turning tool. It is the `DZL` field of the Heidenhain turning tool table (`toolturn.trn`); the geometry is `toolZGeometry` (`ZL`). The **table holds geometry plus wear**, and during machining a delta from the NC program (`FUNCTION TURNDATA CORR`) or from a compensation table can be added (TNC7 User's Manual, 'Compensating turning tools with FUNCTION TURNDATA CORR (option 50)'). Touch probe cycles that measure the workpiece can also write this wear column (manual, 'Turning tool table toolturn.trn (option 50)'). Here Z is not an axis name but a fixed column of that table, that is, a **directional component of the tool dimensions**.
+
+Returns `float`; both read and write are supported; write `{"value": 0.05}`. Requires the `toolArea` + `tool` + `toolEdge` filters. `toolEdge=0` is the tool's own row and from `toolEdge=1` on it is an index tool row (such as `320.1`). **The unit is always mm**: deemesh selects mm when it reads and writes through DNC (so no `unit` field is attached).
+
+**Only turning tools answer.** A tool with no row in the turning tool table (a milling tool, for example) answers status `-18`, and its length and radius are read through `toolLengthGeometry` and `toolRadiusGeometry`; those two addresses answer status `-18` for a tool whose tool type (`TYP`) is turning, grinding or dressing. When the turning tool table is not found the status is `-20` (the TNC7 User's Manual describes this table as a feature of software option 50; our test environment has the table, so that case has not been confirmed). A nonexistent tool or index, and row `0` at the top of the table, are status `-18` as well. A value the control does not accept is status `-16`, with the field's allowed range in the error message (`-99999.9999` to `99999.9999` on the simulator). Reading and writing were confirmed on the TNC7 programming station.
+
+**Heidenhain only.** Fanuc and Mitsubishi answer status `-20`; read a lathe's Z-direction compensation from the channel offset table at `/machine/channel/toolOffset/toolZWear`. Siemens answers status `-20` too: its per-tool table has lengths 1 to 3 (`toolLengthGeometry`, `toolLength2Geometry`, `toolLength3Geometry`) instead of X, Y and Z columns, and which length is which direction depends on the tool type and the active plane, so deemesh does not translate it.
+
+## /machine/toolArea/tool/toolEdge/toolYGeometry
+```yaml
+value_type: "float"
+null_able: false
+required_filters: ["toolArea", "tool", "toolEdge"]
+read: ["nc_dnc_heidenhain"]
+write: ["nc_dnc_heidenhain"]
+```
+
+The **Y-direction length geometry** value of a turning tool. It is the `YL` field of the Heidenhain turning tool table (`toolturn.trn`); the wear is `toolYWear` (`DYL`). It is the length in the Y direction from the tool carrier preset, "tool length 3" in the control's dialog (manual, 'Turning tool table toolturn.trn (option 50)'). The **table holds geometry plus wear**, and during machining a delta from the NC program (`FUNCTION TURNDATA CORR`) or from a compensation table can be added (TNC7 User's Manual, 'Compensating turning tools with FUNCTION TURNDATA CORR (option 50)'). Here Y is not an axis name but a fixed column of that table, that is, a **directional component of the tool dimensions**.
+
+Returns `float`; both read and write are supported; write `{"value": 0.0}`. Requires the `toolArea` + `tool` + `toolEdge` filters. `toolEdge=0` is the tool's own row and from `toolEdge=1` on it is an index tool row (such as `320.1`). **The unit is always mm**: deemesh selects mm when it reads and writes through DNC (so no `unit` field is attached).
+
+**Only turning tools answer.** A tool with no row in the turning tool table (a milling tool, for example) answers status `-18`, and its length and radius are read through `toolLengthGeometry` and `toolRadiusGeometry`; those two addresses answer status `-18` for a tool whose tool type (`TYP`) is turning, grinding or dressing. When the turning tool table is not found the status is `-20` (the TNC7 User's Manual describes this table as a feature of software option 50; our test environment has the table, so that case has not been confirmed). A nonexistent tool or index, and row `0` at the top of the table, are status `-18` as well. A value the control does not accept is status `-16`, with the field's allowed range in the error message (`-99999.9999` to `99999.9999` on the simulator). Reading and writing were confirmed on the TNC7 programming station.
+
+**Heidenhain only.** Fanuc and Mitsubishi answer status `-20`; read a lathe's Y-direction compensation from the channel offset table at `/machine/channel/toolOffset/toolYGeometry`. Siemens answers status `-20` too: its per-tool table has lengths 1 to 3 (`toolLengthGeometry`, `toolLength2Geometry`, `toolLength3Geometry`) instead of X, Y and Z columns, and which length is which direction depends on the tool type and the active plane, so deemesh does not translate it.
+
+## /machine/toolArea/tool/toolEdge/toolYWear
+```yaml
+value_type: "float"
+null_able: false
+required_filters: ["toolArea", "tool", "toolEdge"]
+read: ["nc_dnc_heidenhain"]
+write: ["nc_dnc_heidenhain"]
+```
+
+The **Y-direction length wear** value of a turning tool. It is the `DYL` field of the Heidenhain turning tool table (`toolturn.trn`); the geometry is `toolYGeometry` (`YL`). The **table holds geometry plus wear**, and during machining a delta from the NC program (`FUNCTION TURNDATA CORR`) or from a compensation table can be added (TNC7 User's Manual, 'Compensating turning tools with FUNCTION TURNDATA CORR (option 50)'). Touch probe cycles that measure the workpiece can also write this wear column (manual, 'Turning tool table toolturn.trn (option 50)'). Here Y is not an axis name but a fixed column of that table, that is, a **directional component of the tool dimensions**.
+
+Returns `float`; both read and write are supported; write `{"value": 0.05}`. Requires the `toolArea` + `tool` + `toolEdge` filters. `toolEdge=0` is the tool's own row and from `toolEdge=1` on it is an index tool row (such as `320.1`). **The unit is always mm**: deemesh selects mm when it reads and writes through DNC (so no `unit` field is attached).
+
+**Only turning tools answer.** A tool with no row in the turning tool table (a milling tool, for example) answers status `-18`, and its length and radius are read through `toolLengthGeometry` and `toolRadiusGeometry`; those two addresses answer status `-18` for a tool whose tool type (`TYP`) is turning, grinding or dressing. When the turning tool table is not found the status is `-20` (the TNC7 User's Manual describes this table as a feature of software option 50; our test environment has the table, so that case has not been confirmed). A nonexistent tool or index, and row `0` at the top of the table, are status `-18` as well. A value the control does not accept is status `-16`, with the field's allowed range in the error message (`-99999.9999` to `99999.9999` on the simulator). Reading and writing were confirmed on the TNC7 programming station.
+
+**Heidenhain only.** Fanuc and Mitsubishi answer status `-20`; read a lathe's Y-direction compensation from the channel offset table at `/machine/channel/toolOffset/toolYWear`. Siemens answers status `-20` too: its per-tool table has lengths 1 to 3 (`toolLengthGeometry`, `toolLength2Geometry`, `toolLength3Geometry`) instead of X, Y and Z columns, and which length is which direction depends on the tool type and the active plane, so deemesh does not translate it.
 
 ## /machine/toolArea/tool/toolEdge/toolTipDirection
 ```yaml
@@ -4279,19 +4677,21 @@ Returns `int`; both read and write are supported. Write `{"value": 3}`. Requires
 value_type: "float"
 null_able: false
 required_filters: ["toolArea", "tool", "toolEdge"]
-read: ["nc_opcua_siemens"]
-write: ["nc_opcua_siemens"]
+read: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
+write: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
 ```
 
 The **tip angle** of that cutting edge: the point angle of a drill (`118.0`), `90.0` for a centre drill, and so on. `toolArea` + `tool` + `toolEdge` filters. Returns `float`; both read and write are supported. Write `{"value": 118.0}`.
 
 **It is not `toolTipDirection`.** The names differ by one word but the values do not match up: that one is a code for **which direction** the tip sits relative to the nose centre, while this one is the **angle** of the tip.
 
-**Tools that carry no angle report `0.0`.** Milling tools are such tools. Measured here, a drill gave `118.0` and a face mill `0.0`. The source is SINUMERIK `DP24`: for drills it is the field the panel (Operate) uses for the tip angle, but **for turning tools the same field is the clearance angle** (cutting edge data table of the tool management manual), so do not read it as a tip angle on a turning tool.
+**Tools that carry no angle report `0.0`.** Milling tools are such tools. Measured on Siemens, a drill gave `118.0` and a face mill `0.0`. The source is SINUMERIK `DP24`: for drills it is the field the panel (Operate) uses for the tip angle, but **for turning tools the same field is the clearance angle** (cutting edge data table of the tool management manual), so do not read it as a tip angle on a turning tool.
 
 **The `N` column on the machine's screen doubles as this value and `toolTeethCount`.** It shows the angle for drills and the tooth count for milling tools in that one cell. deemesh keeps them apart so that one address never means a different physical quantity depending on the tool type. To find the number from the screen, look at whichever of the two carries a value.
 
-**Siemens only.** A nonexistent tool or edge (D) is rejected with status `-18`.
+**Siemens and Heidenhain support it.** On Siemens a nonexistent tool or edge (D) is rejected with status `-18`.
+
+**Heidenhain** uses the tool table's point angle (`T-ANGLE`). The TNC7 User's Manual ('Tool table tool.t') describes this column as the point angle of tools such as drills (used for the simulation, in cycles and for collision monitoring) and gives its input range as -180 to +180. In our test environment a drill read `118.0`, a spot drill `90.0` and a milling tool `0.0`. `toolEdge=0` is the tool's own row and from `toolEdge=1` on it is an index tool row (such as `5.1`). Writing is supported; a value the control does not accept is status `-16`, with the field's allowed range in the error message (writing `200.0` in our test environment gave `-180` to `180`). A nonexistent tool or index, and row `0` at the top of the table, are status `-18`; a blank cell in the control's tool table is status `-22`; when the `T-ANGLE` column is not found in the tool table the status is `-20` (this address does not work on that machine). **Turning, grinding and dressing tools (tool type column `TYP` `29`, `30` or `31`) answer status `-18`** (both read and write). The turning tool table (`toolturn.trn`) keeps the angles of a turning tool in its own `T-ANGLE` (tool angle) and `P-ANGLE` (point angle) columns (TNC7 User's Manual, 'Turning tool table toolturn.trn'). deemesh does not expose those two.
 
 **Fanuc and Mitsubishi answer with status `-20`.** Neither control's offset model has an edge layer under the tool (see `toolEdgeCount`); read compensation values from the channel offset table under `/machine/channel/toolOffset/…`.
 
@@ -4300,13 +4700,13 @@ The **tip angle** of that cutting edge: the point angle of a drill (`118.0`), `9
 value_type: "float"
 null_able: false
 required_filters: ["toolArea", "tool", "toolEdge"]
-read: ["nc_opcua_siemens"]
-write: ["nc_opcua_siemens"]
+read: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
+write: ["nc_opcua_siemens", "nc_dnc_heidenhain"]
 ```
 
 The **whole life budget** allotted to that cutting edge. `toolArea` + `tool` + `toolEdge` filters. Returns `float`; both read and write are supported. Write `{"value": 6}`.
 
-The control starts the remaining life at this value and counts down. The unit is decided by the monitoring method and is carried in the response's `unit` field (see `/machine/toolArea/tool/toolLifeMonitorType`). Under wear monitoring the value is a distance, so its unit depends on the machine setting (mm/inch) and no `unit` field is attached. With monitoring off the request is rejected with status `-18`.
+The Siemens control starts the remaining life at this value and counts down (Heidenhain counts the used time up; see its paragraph below). The unit is decided by the monitoring method and is carried in the response's `unit` field (see `/machine/toolArea/tool/toolLifeMonitorType`). Under wear monitoring the value is a distance, so its unit depends on the machine setting (mm/inch) and no `unit` field is attached. With monitoring off the request is rejected with status `-18` (except a Heidenhain write, which is accepted; see below).
 
 **The value is exactly what the operator panel shows.** Under time monitoring that means minutes (`unit` is `"min"`), not converted to seconds. This differs from the other time values (`…Duration`, always seconds): tool life is a number the operator reads off the screen, so it has to match the screen.
 
@@ -4314,9 +4714,28 @@ When counting pieces, **only whole numbers are accepted.** A fractional value ma
 
 **Writing this value makes SINUMERIK re-evaluate the tool's lock** (Siemens Tool management Function Manual §8.11, and confirmed on our bench). With the remaining life within its limits the lock is released (`/machine/toolArea/tool/toolUseStatus` reads `1`/`2`); with `0` or less remaining the tool is locked (`3`). A tool whose lock bit was set for a reason other than its life (`5`) is released as well, so to keep it locked, write `5` to `toolUseStatus` again after this write. Whether a tool that is `5` only because it has no use permission is released too is not yet confirmed.
 
-**Siemens only.** On Fanuc tool life belongs to the tool, not to a cutting edge, so it lives at `/machine/toolArea/tool/toolLifeTotal` (in seconds or counts there).
+**Siemens and Heidenhain.** On Fanuc tool life belongs to the tool, not to a cutting edge, so it lives at `/machine/toolArea/tool/toolLifeTotal` (in seconds or counts there).
 
 **Mitsubishi answers with status `-20`.** That control's offset model has no edge layer under the tool (see `toolEdgeCount`).
+
+**Heidenhain** uses the row's maximum life (`TIME1`). `toolEdge=0` is the tool's own row, so it gives the same value as `/machine/toolArea/tool/toolLifeTotal`, and from `toolEdge=1` on it is the value of an index tool (a row such as `320.1` that follows a tool number). Each index tool has a life of its own. The rules match the tool-level address: the unit is minutes (`unit` is `"min"`), and `0` means there is no maximum life, so reading is status `-18` (also for a row that has only `TIME2`). Writing is accepted even while monitoring is off (writing a value turns it on, writing `0` turns it off). Only whole minutes are accepted (a fraction is status `-16`, because the control rounds it to a whole number). A value the control does not accept is status `-16`, with the allowed range in the error message. The control counts the used time up rather than a remainder down, so that value is answered by `/machine/toolArea/tool/toolEdge/toolLifeUsed`. A nonexistent tool or index, and row `0` at the top of the table, are status `-18`.
+
+## /machine/toolArea/tool/toolEdge/toolLifeUsed
+```yaml
+value_type: "float"
+null_able: false
+required_filters: ["toolArea", "tool", "toolEdge"]
+read: ["nc_dnc_heidenhain"]
+write: ["nc_dnc_heidenhain"]
+```
+
+The life that edge (index tool) **has used so far**. `toolArea` + `tool` + `toolEdge` filters. Returns `float`; both read and write are supported. Write `{"value": 0}`.
+
+**Heidenhain only.** It is the current used time of that row in the tool table (`CUR_TIME`, shown as `CUR_TIME (min)` on the control's tool management screen), in minutes (`unit` is `"min"`). `toolEdge=0` is the tool's own row, so it gives the same value as `/machine/toolArea/tool/toolLifeUsed`, and from `toolEdge=1` on it is the value of an index tool (a row such as `320.1` that follows a tool number). Each index tool has a life of its own. The control counts this value up toward the maximum life (`/machine/toolArea/tool/toolEdge/toolLifeTotal`) (in our test environment the tool's own row and the row of the milling index tool `10.1` each grew during feed blocks, and while `10.1` was in use the tool's own row stayed as it was; the TNC7 User's Manual, 'Indexed tool', also says the control writes the used time separately for each row).
+
+**Write this address when you change the insert and reset the life** (usually `0`). Fractions are accepted, and the control rounds them to two decimal places (see `/machine/toolArea/tool/toolLifeUsed`). When the row has no life limit (`TIME1` and `TIME2` both `0`), both reading and writing are status `-18`; write `/machine/toolArea/tool/toolEdge/toolLifeTotal` first. A nonexistent tool or index, and row `0` at the top of the table, are status `-18`.
+
+Siemens, Fanuc and Mitsubishi answer with status `-20`. Siemens counts the remaining life down, so see `/machine/toolArea/tool/toolEdge/toolLifeRemaining`; on Fanuc and Mitsubishi see the tool-level `/machine/toolArea/tool/toolLifeUsed`.
 
 ## /machine/toolArea/tool/toolEdge/toolLifeRemaining
 ```yaml
@@ -4341,6 +4760,8 @@ The unit is decided by the monitoring method and is carried in the response's `u
 
 **Mitsubishi answers with status `-20`.** That control's offset model has no edge layer under the tool (see `toolEdgeCount`).
 
+**Heidenhain answers with status `-20`.** Heidenhain counts the used time up, so read `/machine/toolArea/tool/toolEdge/toolLifeUsed` and get the time left to the maximum life (`TIME1`) by subtracting it from `/machine/toolArea/tool/toolEdge/toolLifeTotal`. If the limit at tool call `TIME2` is smaller, that one takes effect first (see `/machine/toolArea/tool/toolEdge/toolUseStatus`).
+
 ## /machine/toolArea/tool/toolEdge/toolLifeWarnLimit
 ```yaml
 value_type: "float"
@@ -4359,3 +4780,42 @@ It buys time to prepare a replacement tool, so it is set lower than `toolLifeTot
 **Siemens only.** On Fanuc the notice life belongs to the tool and lives at `/machine/toolArea/tool/toolLifeWarnLimit`.
 
 **Mitsubishi answers with status `-20`.** That control's offset model has no edge layer under the tool (see `toolEdgeCount`).
+
+**Heidenhain answers with status `-20`.**
+
+## /machine/toolArea/tool/toolEdge/toolUseStatus
+```yaml
+value_type: "int"
+null_able: false
+required_filters: ["toolArea", "tool", "toolEdge"]
+read: ["nc_dnc_heidenhain"]
+write: ["nc_dnc_heidenhain"]
+codes: [{"value": 1, "name": "unused"}, {"value": 2, "name": "in use"}, {"value": 3, "name": "life expired"}, {"value": 5, "name": "locked"}]
+```
+
+The **use status** of that edge (index tool). `toolArea` + `tool` + `toolEdge` filters. Returns `int` + `desc`; both read and write are supported. The values mean the same as the tool-level `/machine/toolArea/tool/toolUseStatus` (`1` unused, `2` in use, `3` life expired, `5` locked).
+
+**Heidenhain only.** Each index tool has a lock and a life of its own, so the tool-level rule is applied to that row's lock (`TL`) and life (maximum `TIME1`, the limit at tool call `TIME2`, used `CUR_TIME`): it is `3` whatever the lock when the used time has reached `TIME2`; otherwise, when locked, it is `3` if a maximum life is set and the used time has reached it, otherwise `5`; when not locked, it is `2` if there is used time and `1` if not. `0` and `4` do not occur. `toolEdge=0` is the tool's own row, so it gives the same value as the tool-level address. Being past `TIME1` follows the control's lock, so to tell whether the life has run out, compare `/machine/toolArea/tool/toolEdge/toolLifeUsed` with `/machine/toolArea/tool/toolEdge/toolLifeTotal`. A nonexistent tool or index, and row `0` at the top of the table, are status `-18`.
+
+**Writing** changes that row's lock (`TL`), with the same rules as the tool-level address: `5` locks, and `1`/`2` unlock but are accepted only when the row then reads that value (`2` with used time, `1` without; a mismatch is status `-16`, and to mark it unused write `0` to `/machine/toolArea/tool/toolEdge/toolLifeUsed` first). `3`, `0` and `4` are status `-16`; when the row's used time has reached `TIME2` it reads `3` whatever the lock, so `1`, `2` and `5` are status `-16` too (correct the used time first). Otherwise, if the row is already in that state nothing happens and the write succeeds. Locking an index row left the tool's own row as it was (confirmed in our test environment).
+
+Siemens, Fanuc and Mitsubishi answer with status `-20`. On Siemens and Fanuc the use status is per tool, which `/machine/toolArea/tool/toolUseStatus` answers.
+
+## /machine/toolArea/tool/toolEdge/sisterTool
+```yaml
+value_type: "object"
+null_able: false
+required_filters: ["toolArea", "tool", "toolEdge"]
+read: ["nc_dnc_heidenhain"]
+write: ["nc_dnc_heidenhain"]
+```
+
+The **replacement tool** used in place of that edge (index tool). `toolArea` + `tool` + `toolEdge` filters. Returns `object`; both read and write are supported. Write `{"value": {"toolNumber": 320, "toolEdgeNumber": 2}}`.
+
+The value's shape and rules match the tool-level `/machine/toolArea/tool/sisterTool`: two numbers that point at the replacement tool, such as `{"toolNumber": 320, "toolEdgeNumber": 2}`, or `{"toolNumber": 0, "toolEdgeNumber": 0}` with no replacement tool. Put them as they are into the `tool` and `toolEdge` filters to read that tool.
+
+**Heidenhain only.** Each index tool (a row such as `320.1` that follows a tool number) has a replacement tool field (`RT`) of its own, and this address carries that row's value. `toolEdge=0` is the tool's own row, so it gives the same value as the tool-level address.
+
+**Writing**: give both keys as integers. Any other key, or a missing one, is status `-16`. Writing `{"toolNumber": 0, "toolEdgeNumber": 0}` clears it. The replacement tool must be in the tool table; the control does not accept a tool that is not there, which is status `-16`. Because the control keeps one decimal number, an index that cannot be told apart in that form (an index ending in `0`, such as `10`, `20` or `100`) is not sent and is status `-16`. A nonexistent tool or index, and row `0` at the top of the table, are status `-18`.
+
+Siemens, Fanuc and Mitsubishi answer with status `-20`.

@@ -72,10 +72,10 @@ the Software. Your rights in those components are governed by their own
 licenses.
 
 The Software is designed to load a separate vendor SDK at runtime (for
-example, FANUC's FOCAS2 library or Mitsubishi Electric's EZSocket component).
-Such vendor SDKs are NOT provided by the Author and are NOT covered by this
-license; you are responsible for obtaining them from the respective vendor
-and complying with the vendor's own license terms.
+example, FANUC's FOCAS2 library, Mitsubishi Electric's EZSocket component, or
+HEIDENHAIN DNC). Such vendor SDKs are NOT provided by the Author and are NOT
+covered by this license; you are responsible for obtaining them from the
+respective vendor and complying with the vendor's own license terms.
 
 ==============================================================================
 TRADEMARKS AND NO AFFILIATION
@@ -83,11 +83,11 @@ TRADEMARKS AND NO AFFILIATION
 
 Third-party names and marks referenced in the Software or its documentation
 (including FANUC, FOCAS, SIEMENS, SINUMERIK, Mitsubishi Electric, EZSocket,
-OPC-UA and others) are trademarks or registered trademarks of their respective
-owners and are used solely to identify the equipment and interfaces the
-Software can communicate with. The Software is an independent work; it is not
-affiliated with, sponsored by, or endorsed by those owners, and it does not
-distribute their software.
+HEIDENHAIN, TNC, OPC-UA and others) are trademarks or registered trademarks of
+their respective owners and are used solely to identify the equipment and
+interfaces the Software can communicate with. The Software is an independent
+work; it is not affiliated with, sponsored by, or endorsed by those owners,
+and it does not distribute their software.
 
 ==============================================================================
 DISCLAIMER OF WARRANTIES
@@ -197,14 +197,15 @@ KOREAN LANGUAGE SUMMARY (참고용 요약, 법적 효력 없음)
 
 ■ 제3자 구성요소·벤더 SDK: 본 소프트웨어에 포함된 오픈소스 구성요소는 각자의
   라이선스를 따릅니다(THIRD-PARTY-NOTICES 참조). 본 소프트웨어가 런타임에 로드하는
-  벤더 SDK(예: FANUC 의 FOCAS2 라이브러리, Mitsubishi Electric 의 EZSocket)는
-  저작자가 제공하지 않고 본 라이선스의 대상도 아닙니다. 해당 SDK 의 입수와 벤더
-  라이선스 준수는 사용자의 책임입니다.
+  벤더 SDK(예: FANUC 의 FOCAS2 라이브러리, Mitsubishi Electric 의 EZSocket,
+  HEIDENHAIN DNC)는 저작자가 제공하지 않고 본 라이선스의 대상도 아닙니다. 해당 SDK 의
+  입수와 벤더 라이선스 준수는 사용자의 책임입니다.
 
-■ 상표·비제휴: 본 소프트웨어와 문서에 언급된 제3자 제품명·회사명(FANUC·FOCAS·SIEMENS·SINUMERIK·
-  Mitsubishi Electric·EZSocket·OPC-UA 등)은 각 소유자의 상표 또는 등록상표이며 통신
-  대상을 식별하는 목적으로만 사용합니다. 본 소프트웨어는 독립적으로 개발되었으며 해당
-  회사들과 제휴·후원·승인 관계가 없고, 그 회사들의 소프트웨어를 배포하지 않습니다.
+■ 상표·비제휴: 본 소프트웨어와 문서에 언급된 제3자 제품명·회사명(FANUC·FOCAS·
+  SIEMENS·SINUMERIK·Mitsubishi Electric·EZSocket·HEIDENHAIN·TNC·OPC-UA 등)은 각
+  소유자의 상표 또는 등록상표이며 통신 대상을 식별하는 목적으로만 사용합니다. 본
+  소프트웨어는 독립적으로 개발되었으며 해당 회사들과 제휴·후원·승인 관계가 없고, 그
+  회사들의 소프트웨어를 배포하지 않습니다.
 
 ■ 무보증: 본 소프트웨어는 "있는 그대로(AS IS)" 제공되며 어떠한 보증도 하지
   않습니다. 본 소프트웨어는 CNC 등 산업용 장비와 통신하는 목적으로 제공되며,
