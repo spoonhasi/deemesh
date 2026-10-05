@@ -175,8 +175,8 @@ Browse **[all releases](https://github.com/spoonhasi/deemesh/releases)**, or jum
 
 | Product | Latest release | Contents |
 |---|---|---|
-| **deemesh-sdk** | **[⬇ deemesh-sdk v1.8.0](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-sdk-v1.8.0)** | Windows (32/64) · Linux (64) native libraries + C header + docs (KO/EN) |
-| **deemesh-hub** | **[⬇ deemesh-hub v2.0.0](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-hub-v2.0.0)** | Standalone HTTP server: `win-setup` (Windows service installer) · `win-portable` · `linux-x64`. Each download is self-contained (no separate SDK needed) |
+| **deemesh-sdk** | **[⬇ deemesh-sdk v1.8.1](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-sdk-v1.8.1)** | Windows (32/64) · Linux (64) native libraries + C header + docs (KO/EN) |
+| **deemesh-hub** | **[⬇ deemesh-hub v2.0.1](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-hub-v2.0.1)** | Standalone HTTP server: `win-setup` (Windows service installer) · `win-portable` · `linux-x64`. Each download is self-contained (no separate SDK needed) |
 
 Each download contains a `README`, documentation, `LICENSE` and `THIRD-PARTY-NOTICES`. The Windows hub comes two ways with the same files: the **installer** installs it as a Windows service (the way to run it as a service: it locks the install folder so that only administrators can modify it), and the **portable** archive is unzipped and run. Both carry both bitnesses: run `deemesh-hub-x64.exe` and keep the two files together; bitness (yours, and your Fanuc DLL's) is the hub's problem, not yours. The installer and the executables are not code-signed, so Windows may show "Windows protected your PC": choose **More info**, then **Run anyway**, and check the download against its `.sha256`. The SDK and the hub are versioned independently; take the latest of each.
 
