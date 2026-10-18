@@ -141,8 +141,8 @@ POST /machine/channel/variable/variableValue?channel=1&variable=100      ← wri
 >   840D sl**; 828D has not been tested, so some addresses may not be available there.
 > - **Mitsubishi** needs **Mitsubishi Electric's EZSocket (`FCSB1224W100`) installed** on the PC (obtained
 >   from Mitsubishi Electric; a 32-bit Windows component), and the machine's control
->   series in the `system_type` setting. The hub hosts the Mitsubishi adapters in a
->   32-bit child process on its own, so the hub itself stays 64-bit. Mills and lathes of
+>   series in the `system_type` setting. The hub hosts each Mitsubishi machine in its own
+>   32-bit child process, so the hub itself stays 64-bit. Mills and lathes of
 >   different series can be connected together, on the hub and in one SDK process alike.
 > - **Heidenhain** needs **HEIDENHAIN DNC installed** on the PC (obtained from Heidenhain; a Windows
 >   component with 32-bit and 64-bit variants), **software option 18 (HEIDENHAIN DNC)** enabled on the
@@ -175,8 +175,8 @@ Browse **[all releases](https://github.com/spoonhasi/deemesh/releases)**, or jum
 
 | Product | Latest release | Contents |
 |---|---|---|
-| **deemesh-sdk** | **[⬇ deemesh-sdk v1.8.1](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-sdk-v1.8.1)** | Windows (32/64) · Linux (64) native libraries + C header + docs (KO/EN) |
-| **deemesh-hub** | **[⬇ deemesh-hub v2.0.1](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-hub-v2.0.1)** | Standalone HTTP server: `win-setup` (Windows service installer) · `win-portable` · `linux-x64`. Each download is self-contained (no separate SDK needed) |
+| **deemesh-sdk** | **[⬇ deemesh-sdk v1.9.0](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-sdk-v1.9.0)** | Windows (32/64) · Linux (64) native libraries + C header + docs (KO/EN) |
+| **deemesh-hub** | **[⬇ deemesh-hub v2.1.0](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-hub-v2.1.0)** | Standalone HTTP server: `win-setup` (Windows service installer) · `win-portable` · `linux-x64`. Each download is self-contained (no separate SDK needed) |
 
 Each download contains a `README`, documentation, `LICENSE` and `THIRD-PARTY-NOTICES`. The Windows hub comes two ways with the same files: the **installer** installs it as a Windows service (the way to run it as a service: it locks the install folder so that only administrators can modify it), and the **portable** archive is unzipped and run. Both carry both bitnesses: run `deemesh-hub-x64.exe` and keep the two files together; bitness (yours, and your Fanuc DLL's) is the hub's problem, not yours. The installer and the executables are not code-signed, so Windows may show "Windows protected your PC": choose **More info**, then **Run anyway**, and check the download against its `.sha256`. The SDK and the hub are versioned independently; take the latest of each.
 
@@ -185,6 +185,8 @@ Each download contains a `README`, documentation, `LICENSE` and `THIRD-PARTY-NOT
 ## License
 
 **Freeware.** Free to use and redistribute, **including commercially**. The source is not published, and the software is provided **without warranty or liability**. See [LICENSE](LICENSE) for the full terms.
+
+deemesh includes one open-source component with a modification, async-opcua-client (MPL-2.0); its source as included is in [third-party/async-opcua-client](third-party/async-opcua-client). Every third-party component and its license is listed in `THIRD-PARTY-NOTICES` in each download.
 
 ## Trademarks
 
