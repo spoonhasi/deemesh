@@ -148,8 +148,7 @@ POST /machine/channel/variable/variableValue?channel=1&variable=100      ← wri
 >   component with 32-bit and 64-bit variants), **software option 18 (HEIDENHAIN DNC)** enabled on the
 >   control, and either the control model in the `system_type` setting or the name of a connection
 >   registered with HEIDENHAIN DNC on the PC in `connection_name` (secure connections, RPC over SSH, use
->   this). Without registration the connection is unencrypted RPC to port `19003`, and the control
->   connects back to the PC for events, so the PC's firewall must allow that.
+>   this). Without registration the connection is unencrypted RPC to port `19003`.
 >   The hub adapts to whichever variant is installed.
 >
 > The vendor pieces (the FOCAS2 library, the OPC-UA option, EZSocket, HEIDENHAIN DNC) are not something
@@ -175,8 +174,8 @@ Browse **[all releases](https://github.com/spoonhasi/deemesh/releases)**, or jum
 
 | Product | Latest release | Contents |
 |---|---|---|
-| **deemesh-sdk** | **[⬇ deemesh-sdk v1.9.0](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-sdk-v1.9.0)** | Windows (32/64) · Linux (64) native libraries + C header + docs (KO/EN) |
-| **deemesh-hub** | **[⬇ deemesh-hub v2.1.0](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-hub-v2.1.0)** | Standalone HTTP server: `win-setup` (Windows service installer) · `win-portable` · `linux-x64`. Each download is self-contained (no separate SDK needed) |
+| **deemesh-sdk** | **[⬇ deemesh-sdk v1.10.0](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-sdk-v1.10.0)** | Windows (32/64) · Linux (64) native libraries + C header + docs (KO/EN) |
+| **deemesh-hub** | **[⬇ deemesh-hub v2.2.0](https://github.com/spoonhasi/deemesh/releases/tag/deemesh-hub-v2.2.0)** | Standalone HTTP server: `win-setup` (Windows service installer) · `win-portable` · `linux-x64`. Each download is self-contained (no separate SDK needed) |
 
 Each download contains a `README`, documentation, `LICENSE` and `THIRD-PARTY-NOTICES`. The Windows hub comes two ways with the same files: the **installer** installs it as a Windows service (the way to run it as a service: it locks the install folder so that only administrators can modify it), and the **portable** archive is unzipped and run. Both carry both bitnesses: run `deemesh-hub-x64.exe` and keep the two files together; bitness (yours, and your Fanuc DLL's) is the hub's problem, not yours. The installer and the executables are not code-signed, so Windows may show "Windows protected your PC": choose **More info**, then **Run anyway**, and check the download against its `.sha256`. The SDK and the hub are versioned independently; take the latest of each.
 
