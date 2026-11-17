@@ -464,6 +464,15 @@ impl ActivateSession {
                 secure_channel.security_mode(),
             )
         };
+        // deemesh modification (2026-11-08): sign and encrypt for the session's server nonce, not
+        // the secure channel's (see `AsyncSecureChannel::session_nonce`). The channel's nonce is
+        // the same value only until the channel is reopened or renewed.
+        let session_nonce = channel.session_nonce();
+        let remote_nonce = if session_nonce.is_null_or_empty() {
+            remote_nonce
+        } else {
+            session_nonce
+        };
         let (user_identity_token, user_token_signature) = self
             .user_identity_token(
                 &remote_nonce,
@@ -536,6 +545,8 @@ impl UARequest for ActivateSession {
             tracing::debug!("activate_session success");
             // trace!("ActivateSessionResponse = {:#?}", response);
             process_service_result(&response.response_header)?;
+            // deemesh modification (2026-11-08): the next ActivateSession uses this nonce.
+            channel.update_from_activated_session(&response.server_nonce);
             Ok(*response)
         } else {
             tracing::error!("activate_session failed");

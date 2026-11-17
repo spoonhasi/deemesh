@@ -45,6 +45,15 @@ pub struct AsyncSecureChannel {
 
     request_send: ArcSwapOption<RequestSend>,
     encoding_context: Arc<RwLock<ContextOwned>>,
+
+    // deemesh modification (2026-11-08): the server nonce of the session, from the last
+    // CreateSession or ActivateSession response. ActivateSession signs it and encrypts the user
+    // token with it (OPC UA Part 4, ActivateSession). It used to be read from the secure channel's
+    // remote nonce, which every OpenSecureChannel response overwrites in Sign and SignAndEncrypt
+    // modes and which ActivateSession responses never updated, so activating the session again
+    // on a reopened channel always failed (BadSecurityChecksFailed, or BadIdentityTokenInvalid
+    // with no security) and the client fell back to a new session on every reconnect.
+    session_nonce: ArcSwap<ByteString>,
 }
 
 /// Event loop for a secure channel. This must be polled to make progress.
@@ -87,7 +96,22 @@ impl AsyncSecureChannel {
         secure_channel.set_remote_nonce_from_byte_string(nonce)?;
         secure_channel.set_remote_cert_from_byte_string(certificate)?;
         self.set_auth_token(auth_token.clone());
+        // deemesh modification (2026-11-08): see `session_nonce`.
+        self.session_nonce.store(Arc::new(nonce.clone()));
         Ok(())
+    }
+
+    // deemesh modification (2026-11-08): keep the server nonce of an ActivateSession response
+    // for the next ActivateSession (see `session_nonce`). An empty nonce keeps the previous one.
+    pub(crate) fn update_from_activated_session(&self, nonce: &ByteString) {
+        if !nonce.is_null_or_empty() {
+            self.session_nonce.store(Arc::new(nonce.clone()));
+        }
+    }
+
+    // deemesh modification (2026-11-08): the server nonce of the session (see `session_nonce`).
+    pub(crate) fn session_nonce(&self) -> ByteString {
+        (**self.session_nonce.load()).clone()
     }
 
     pub(crate) fn security_policy(&self) -> SecurityPolicy {
@@ -159,6 +183,8 @@ impl AsyncSecureChannel {
             request_send: Default::default(),
             channel_lifetime,
             encoding_context,
+            // deemesh modification (2026-11-08): see `session_nonce`.
+            session_nonce: ArcSwap::from_pointee(ByteString::null()),
         }
     }
 
